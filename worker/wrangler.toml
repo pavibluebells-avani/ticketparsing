@@ -6,6 +6,4 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "ticket-db"
-database_id = "REPLACE_AFTER_CREATION"
-# Create with: npx wrangler d1 create ticket-db
-# Then paste the database_id here
+database_id = "5e794ea2-fd64-4012-a68d-02192b039770"

@@ -26,7 +26,7 @@ npx wrangler pages deploy dashboard/ --project-name=ticket-dashboard
 echo ""
 echo "=== Deployment Complete ==="
 echo ""
-echo "Worker:    https://ticket-api.YOUR_SUBDOMAIN.workers.dev"
+echo "Worker:    https://ticket-api.officembx.workers.dev"
 echo "Dashboard: https://ticket-dashboard.pages.dev"
 echo ""
 echo "Don't forget to set the API_KEY secret:"

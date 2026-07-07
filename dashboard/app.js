@@ -3,7 +3,7 @@
 // =====================================================
 
 // CHANGE THIS to your Worker URL after deploying
-const API_BASE = "https://ticket-api.YOUR_SUBDOMAIN.workers.dev"
+const API_BASE = "https://ticket-api.officembx.workers.dev"
 
 let currentPage = 0
 const PAGE_SIZE = 100
