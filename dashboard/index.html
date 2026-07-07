@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+
+        <!-- Header -->
+        <header>
+            <h1>Ticket Dashboard</h1>
+            <div id="collector-status" class="status-badge offline">
+                <span class="dot"></span>
+                <span id="status-text">Checking...</span>
+            </div>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="total-messages">—</div>
+                <div class="stat-label">Total Messages</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="today-messages">—</div>
+                <div class="stat-label">Today</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="total-groups">—</div>
+                <div class="stat-label">Groups</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="last-seen">—</div>
+                <div class="stat-label">Last Seen</div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters">
+            <select id="group-filter">
+                <option value="">All Groups</option>
+            </select>
+            <input type="date" id="date-filter" />
+            <button onclick="loadMessages()">Refresh</button>
+        </div>
+
+        <!-- Messages Table -->
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Group</th>
+                        <th>Sender</th>
+                        <th>Message</th>
+                    </tr>
+                </thead>
+                <tbody id="messages-body">
+                    <tr><td colspan="4" class="empty">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination">
+            <button id="prev-btn" onclick="prevPage()" disabled>Previous</button>
+            <span id="page-info">Page 1</span>
+            <button id="next-btn" onclick="nextPage()">Next</button>
+        </div>
+
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

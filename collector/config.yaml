@@ -1,0 +1,18 @@
+# Cloudflare Worker endpoint
+worker_url: "https://ticket-api.YOUR_SUBDOMAIN.workers.dev/api/messages"
+api_key: "CHANGE_ME_TO_A_SECURE_KEY"
+
+# Heartbeat interval (ms)
+heartbeat_interval: 300000  # 5 minutes
+
+# Monitored WhatsApp groups
+groups:
+  - name: "Bala 494 kerala - Prem"
+    jid: "919894049974-1577513975@g.us"
+    enabled: true
+  - name: "Bala 678 - Dear Prem"
+    jid: "120363039454928220@g.us"
+    enabled: true
+  - name: "Prem - Ac - Statement"
+    jid: "120363420312690777@g.us"
+    enabled: true

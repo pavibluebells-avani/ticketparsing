@@ -1,0 +1,11 @@
+name = "ticket-api"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "ticket-db"
+database_id = "REPLACE_AFTER_CREATION"
+# Create with: npx wrangler d1 create ticket-db
+# Then paste the database_id here

@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lottery Bet Generator</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0b141a;color:#e9edef;min-height:100vh}
+  .container{max-width:520px;margin:0 auto;padding:12px}
+  h1{font-size:18px;text-align:center;padding:10px 0;color:#00a884}
+  .section{background:#1f2c34;border-radius:10px;padding:12px;margin-bottom:10px}
+  .section-title{font-size:12px;color:#8696a0;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+  .row{display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+  .field{flex:1;min-width:90px}
+  .field label{display:block;font-size:11px;color:#8696a0;margin-bottom:3px}
+  select,input[type=text],input[type=number]{width:100%;padding:9px;border:1px solid #2a3942;border-radius:8px;background:#2a3942;color:#e9edef;font-size:14px;outline:none}
+  select:focus,input:focus{border-color:#00a884}
+  .chip-group{display:flex;flex-wrap:wrap;gap:5px}
+  .chip{padding:5px 12px;border-radius:16px;font-size:12px;cursor:pointer;background:#2a3942;border:1px solid #3b4a54;transition:all .15s;user-select:none}
+  .chip.active{background:#00a884;border-color:#00a884;color:#111b21;font-weight:600}
+  .chip:hover:not(.disabled){border-color:#00a884}
+  .chip.disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+  .chip.primary-match{box-shadow:0 0 0 2px rgba(0,168,132,.4)}
+  .num-row{display:flex;gap:6px;align-items:center;margin-bottom:5px;background:#2a3942;border-radius:8px;padding:6px 8px}
+  .num-row input[type=text]{flex:3;background:#111b21;border-color:#111b21;padding:7px}
+  .num-row .qty-ctrl{display:flex;align-items:center;gap:2px}
+  .num-row .qty-ctrl button{width:26px;height:26px;border:none;border-radius:6px;background:#3b4a54;color:#e9edef;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .num-row .qty-ctrl button:hover{background:#00a884;color:#111b21}
+  .num-row .qty-ctrl input{width:36px;text-align:center;padding:4px;background:#111b21;border-color:#111b21;font-size:13px}
+  .num-row .remove-btn{background:none;border:none;color:#ea4335;font-size:18px;cursor:pointer;padding:0 4px}
+  .expansion-preview{font-size:11px;color:#8696a0;margin-top:2px;padding:2px 8px}
+  .expansion-preview b{color:#00a884}
+  .btn{width:100%;padding:10px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
+  .btn-primary{background:#00a884;color:#111b21}
+  .btn-primary:hover{background:#02b892}
+  .btn-secondary{background:#2a3942;color:#e9edef;border:1px solid #3b4a54}
+  .btn-add{background:transparent;color:#00a884;border:1px dashed #00a884;margin-bottom:6px;font-size:13px;padding:8px}
+  .btn-small{width:auto;padding:7px 14px;font-size:12px}
+  .output-area{background:#111b21;border:1px solid #2a3942;border-radius:8px;padding:12px;font-family:monospace;font-size:13px;white-space:pre-wrap;min-height:50px;line-height:1.5;color:#e9edef}
+  .preview-box{background:#005c4b;border-radius:8px;padding:8px 12px;margin-top:8px;font-size:12px;color:#d1f4cc}
+  .preview-box .label{font-size:10px;color:#a8d8b9;margin-bottom:3px}
+  .stats{display:flex;gap:10px;margin-top:6px;flex-wrap:wrap}
+  .stat{font-size:11px;color:#8696a0}.stat b{color:#00a884}
+  .block-card{background:#2a3942;border-radius:8px;padding:8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;font-size:12px}
+  .block-card .info{flex:1}
+  .block-card .title{color:#e9edef;font-weight:600}
+  .block-card .detail{color:#8696a0;font-size:11px}
+  .block-card .actions button{background:none;border:none;cursor:pointer;font-size:15px;padding:2px 4px}
+  .history-item{background:#2a3942;border-radius:8px;padding:8px;margin-bottom:5px;cursor:pointer;font-size:12px;transition:background .15s}
+  .history-item:hover{background:#3b4a54}
+  .history-item .time{color:#8696a0;font-size:10px}
+  .history-item .text{color:#e9edef;white-space:pre-wrap;font-family:monospace;font-size:11px;margin-top:3px;max-height:50px;overflow:hidden}
+  .tab-bar{display:flex;gap:0;margin-bottom:10px;border-radius:8px;overflow:hidden}
+  .tab{flex:1;padding:9px;text-align:center;font-size:13px;cursor:pointer;background:#2a3942;border:1px solid #3b4a54;transition:all .15s}
+  .tab.active{background:#00a884;color:#111b21;font-weight:600;border-color:#00a884}
+  .tab:first-child{border-radius:8px 0 0 8px}.tab:last-child{border-radius:0 8px 8px 0}
+  .hidden{display:none}
+  .validation-error{color:#ea4335;font-size:11px;margin-top:3px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#00a884;color:#111b21;padding:8px 20px;border-radius:18px;font-size:13px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;z-index:100}
+  .toast.show{opacity:1}
+  .each-bar{display:flex;align-items:center;gap:8px;margin:6px 0;padding:6px 8px;background:#2a3942;border-radius:8px}
+  .each-bar label{font-size:11px;color:#8696a0;white-space:nowrap}
+  .each-bar input{width:50px}
+  .each-bar .hint{font-size:10px;color:#8696a0}
+  .radio-group{display:flex;gap:12px;align-items:center}
+  .radio-group label{font-size:12px;color:#e9edef;cursor:pointer;display:flex;align-items:center;gap:4px}
+  .legend{font-size:10px;color:#8696a0;margin-top:6px;line-height:1.4}
+  .legend b{color:#00a884}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Lottery Bet Generator</h1>
+  <div class="tab-bar">
+    <div class="tab active" onclick="switchTab('compose')">Compose</div>
+    <div class="tab" onclick="switchTab('output')">Output</div>
+    <div class="tab" onclick="switchTab('history')">History</div>
+  </div>
+
+  <!-- COMPOSE -->
+  <div id="tab-compose">
+    <div class="section">
+      <div class="section-title">Lottery & Timeslot</div>
+      <div class="row">
+        <div class="field"><label>Lottery</label><select id="lottery" onchange="onLotteryChange()">
+          <option value="DEAR">Dear</option><option value="KERALA">Kerala</option><option value="GOA">Goa</option>
+        </select></div>
+        <div class="field"><label>Timeslot</label><select id="timeslot" onchange="onAnyChange()"></select></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Rate</div>
+      <div class="chip-group" id="rate-chips"></div>
+      <div class="legend" id="rate-legend"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Bet Type</div>
+      <div class="chip-group" id="bettype-chips"></div>
+      <div id="bettype-hint" style="font-size:11px;color:#8696a0;margin-top:6px"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Numbers</div>
+      <div id="digit-hint" style="font-size:11px;color:#8696a0;margin-bottom:6px"></div>
+      <div id="numbers-list"></div>
+      <button class="btn btn-add" onclick="addNumberRow()">+ Add Number Row</button>
+
+      <div class="each-bar">
+        <div class="radio-group">
+          <label><input type="radio" name="qty-mode" value="individual" checked onchange="onQtyModeChange()"> Individual Qty</label>
+          <label><input type="radio" name="qty-mode" value="each" onchange="onQtyModeChange()"> Each (bulk)</label>
+        </div>
+      </div>
+      <div class="each-bar hidden" id="each-bar">
+        <label>Each qty:</label>
+        <input type="number" id="each-qty" value="1" min="1" max="99" oninput="applyEachQty()">
+        <span class="hint">Applied to all numbers</span>
+      </div>
+
+      <div id="number-validation" class="validation-error"></div>
+      <div id="expansion-area"></div>
+    </div>
+
+    <div class="section" id="blocks-section">
+      <div class="section-title">Message Blocks</div>
+      <div id="blocks-list"></div>
+      <div class="row" style="gap:6px">
+        <button class="btn btn-secondary btn-small" onclick="addBlock()" style="flex:1">+ Add Block</button>
+        <button class="btn btn-primary btn-small" onclick="generateOutput()" style="flex:1">Generate Message</button>
+      </div>
+    </div>
+
+    <div class="preview-box" id="live-preview">
+      <div class="label">Live Preview</div>
+      <div id="preview-text" style="font-family:monospace;font-size:12px;white-space:pre-wrap"></div>
+      <div class="stats" id="preview-stats"></div>
+    </div>
+  </div>
+
+  <!-- OUTPUT -->
+  <div id="tab-output" class="hidden">
+    <div class="section">
+      <div class="section-title">Generated Message</div>
+      <div class="output-area" id="output-text">No message generated yet.</div>
+    </div>
+    <div class="row" style="gap:6px;margin-bottom:10px">
+      <button class="btn btn-primary" onclick="copyToClipboard()" style="flex:1">Copy to Clipboard</button>
+      <button class="btn btn-secondary" onclick="clearOutput()" style="flex:1">Clear</button>
+    </div>
+    <div class="preview-box" id="output-stats"></div>
+  </div>
+
+  <!-- HISTORY -->
+  <div id="tab-history" class="hidden">
+    <div class="section">
+      <div class="section-title">Recent Messages</div>
+      <div id="history-list"><p style="color:#8696a0;font-size:12px">No history yet.</p></div>
+    </div>
+    <button class="btn btn-secondary" onclick="clearHistory()">Clear History</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== DATA-MINED CONFIGURATION =====
+
+const LOTTERY_TIMESLOTS = {
+  DEAR: ['1PM','3PM','6PM','8PM','10PM'],
+  KERALA: ['1PM','3PM','6PM'],
+  GOA: ['1PM','3PM','6PM','7PM']
+};
+
+// Mined from 67,835 entries: which (rate, betType, digitCount) combos actually exist
+// Format: { rate: { betType: [digitCounts] } }
+// Only combos with significant occurrence (>=10) included
+const VALID_COMBOS = {
+  10:  { DIRECT:[1,2,3], AB:[2,3], AC:[2,3], BC:[2,3], ABC:[3], ALL:[3], A:[1], B:[1], C:[1] },
+  12:  { DIRECT:[2,3], AB:[1,2], AC:[1,2], BC:[1,2], A:[1], B:[1], C:[1] },
+  20:  { DIRECT:[4], AB:[2,4], AC:[2], BC:[2], ABC:[4] },
+  25:  { DIRECT:[3,4], AB:[2,3], AC:[2,3], BC:[2,3], ABC:[3], ALL:[3], A:[1], B:[1], C:[1] },
+  30:  { DIRECT:[1,2,3,4], AB:[1,2,3], AC:[1,2,3], BC:[1,2,3], ABC:[3], ALL:[3], A:[1], B:[1], C:[1] },
+  50:  { DIRECT:[3,4], AB:[2], AC:[2], BC:[2], ALL:[4], A:[1], B:[1], C:[1] },
+  60:  { DIRECT:[3], AB:[2,3], AC:[2,3], BC:[2,3], ABC:[3], ALL:[3], SINGLE:[3], A:[1], B:[1], C:[1] },
+  100: { DIRECT:[4], AB:[2], AC:[2], BC:[2], ALL:[4] },
+  650: { DIRECT:[5] }
+};
+
+// Primary associations (strongest pairings from data)
+// rate → primary bet types, and bet type → primary rates
+const RATE_PRIMARY = {
+  10:  ['DIRECT','ABC','ALL','AB','AC','BC'],
+  12:  ['AB','BC','AC','A','B','C'],
+  20:  ['DIRECT'],
+  25:  ['DIRECT','ABC','AB','AC','BC'],
+  30:  ['DIRECT','AB','AC','BC','ALL','ABC','A','B','C'],
+  50:  ['DIRECT','AB','AC','BC','ALL'],
+  60:  ['DIRECT','AB','AC','BC','ABC','ALL'],
+  100: ['DIRECT','AB','AC','BC','ALL'],
+  650: ['DIRECT']
+};
+
+const BETTYPE_PRIMARY_RATES = {
+  DIRECT: [30,60,25,10,100,50,20],
+  AB:     [12,30,10,60,25,50,100],
+  AC:     [12,30,10,60,25,50,100],
+  BC:     [12,30,10,60,25,50,100],
+  ABC:    [25,60,10,30],
+  ALL:    [10,30,25,50,60,100],
+  A:      [12,30,10,60],
+  B:      [12,30,10,60],
+  C:      [12,30,10,60],
+  SINGLE: [60]
+};
+
+const BET_TYPES = [
+  {id:'DIRECT', label:'Direct', hint:'Any digit count'},
+  {id:'AB', label:'AB', hint:'2-digit numbers'},
+  {id:'AC', label:'AC', hint:'2-digit numbers'},
+  {id:'BC', label:'BC', hint:'2-digit numbers'},
+  {id:'ABC', label:'ABC', hint:'3-digit numbers'},
+  {id:'ALL', label:'ALL/Board', hint:'All permutations'},
+  {id:'BOX', label:'Box', hint:'All permutations (3D)'},
+  {id:'A', label:'Single A', hint:'1-digit'},
+  {id:'B', label:'Single B', hint:'1-digit'},
+  {id:'C', label:'Single C', hint:'1-digit'},
+];
+
+const RATES = [10, 12, 20, 25, 30, 50, 60, 100, 650];
+
+// ===== STATE =====
+let selectedRate = 30;
+let selectedBetType = 'DIRECT';
+let blocks = [];
+let qtyMode = 'individual'; // 'individual' or 'each'
+
+// ===== INIT =====
+function init() {
+  buildTimeslots();
+  buildRateChips();
+  buildBetTypeChips();
+  addNumberRow();
+  renderBlocks();
+  updatePreview();
+  loadHistory();
+}
+
+function buildTimeslots() {
+  const lot = document.getElementById('lottery').value;
+  const sel = document.getElementById('timeslot');
+  sel.innerHTML = '';
+  (LOTTERY_TIMESLOTS[lot]||[]).forEach(ts => {
+    const o = document.createElement('option');
+    o.value = ts; o.textContent = ts; sel.appendChild(o);
+  });
+}
+
+// ===== RATE ↔ BETTYPE COUPLING =====
+
+function getValidBetTypesForRate(rate) {
+  const combos = VALID_COMBOS[rate];
+  return combos ? Object.keys(combos) : [];
+}
+
+function getValidRatesForBetType(bt) {
+  const rates = [];
+  for (const [r, combos] of Object.entries(VALID_COMBOS)) {
+    if (combos[bt] || (bt === 'BOX' && combos['ALL'])) rates.push(parseInt(r));
+  }
+  return rates;
+}
+
+function isPrimaryMatch(rate, bt) {
+  const rp = RATE_PRIMARY[rate];
+  return rp && rp.includes(bt === 'BOX' ? 'ALL' : bt);
+}
+
+function buildRateChips() {
+  const container = document.getElementById('rate-chips');
+  container.innerHTML = '';
+  const validRates = getValidRatesForBetType(selectedBetType);
+
+  RATES.forEach(r => {
+    const chip = document.createElement('div');
+    const isValid = validRates.includes(r);
+    const isPrimary = isPrimaryMatch(r, selectedBetType);
+    chip.className = 'chip' +
+      (r === selectedRate ? ' active' : '') +
+      (!isValid ? ' disabled' : '') +
+      (isPrimary && r !== selectedRate ? ' primary-match' : '');
+    chip.textContent = 'Rs' + r;
+    chip.onclick = () => {
+      if (!isValid) return;
+      selectedRate = r;
+      buildRateChips();
+      buildBetTypeChips();
+      updateDigitHint();
+      updateExpansion();
+      updatePreview();
+    };
+    container.appendChild(chip);
+  });
+
+  // Legend
+  const legend = document.getElementById('rate-legend');
+  if (selectedBetType !== 'DIRECT') {
+    const primary = (BETTYPE_PRIMARY_RATES[selectedBetType === 'BOX' ? 'ALL' : selectedBetType] || []).slice(0,3);
+    legend.innerHTML = `Most used for <b>${selectedBetType}</b>: ${primary.map(r=>'Rs'+r).join(', ')}`;
+  } else {
+    legend.innerHTML = '';
+  }
+}
+
+function buildBetTypeChips() {
+  const container = document.getElementById('bettype-chips');
+  container.innerHTML = '';
+  const validBets = getValidBetTypesForRate(selectedRate);
+
+  BET_TYPES.forEach(bt => {
+    const chip = document.createElement('div');
+    const btKey = bt.id === 'BOX' ? 'ALL' : bt.id;
+    const isValid = validBets.includes(btKey) || bt.id === 'BOX';
+    const isPrimary = isPrimaryMatch(selectedRate, bt.id);
+    chip.className = 'chip' +
+      (bt.id === selectedBetType ? ' active' : '') +
+      (!isValid ? ' disabled' : '') +
+      (isPrimary && bt.id !== selectedBetType ? ' primary-match' : '');
+    chip.textContent = bt.label;
+    chip.onclick = () => {
+      if (!isValid) return;
+      selectedBetType = bt.id;
+      buildRateChips();
+      buildBetTypeChips();
+      updateDigitHint();
+      updateExpansion();
+      updatePreview();
+    };
+    container.appendChild(chip);
+  });
+
+  const hint = document.getElementById('bettype-hint');
+  const bt = BET_TYPES.find(b => b.id === selectedBetType);
+  hint.textContent = bt ? bt.hint : '';
+}
+
+function updateDigitHint() {
+  const hint = document.getElementById('digit-hint');
+  const bt = selectedBetType;
+  const combos = VALID_COMBOS[selectedRate];
+  const btKey = bt === 'BOX' ? 'ALL' : bt;
+  const digits = combos && combos[btKey] ? combos[btKey] : [];
+
+  if (bt === 'BOX') {
+    hint.textContent = 'Enter 3+ digit numbers — all permutations will be expanded';
+  } else if (['A','B','C'].includes(bt)) {
+    hint.textContent = 'Enter single digits (0-9)';
+  } else if (['AB','AC','BC'].includes(bt)) {
+    hint.textContent = 'Enter 2-digit numbers';
+  } else if (bt === 'ABC') {
+    hint.textContent = 'Enter 3-digit numbers';
+  } else if (bt === 'ALL') {
+    hint.textContent = `Enter ${digits.join(' or ')}-digit numbers — full board expansion`;
+  } else {
+    hint.textContent = digits.length ? `Enter ${digits.join(' or ')}-digit numbers` : 'Enter bet numbers';
+  }
+}
+
+// ===== NUMBER ROWS =====
+function addNumberRow() {
+  const list = document.getElementById('numbers-list');
+  const row = document.createElement('div');
+  row.className = 'num-row';
+  row.innerHTML = `
+    <input type="text" placeholder="Numbers: 360,180,505" class="num-input" oninput="onNumberInput(this)">
+    <div class="qty-ctrl">
+      <button onclick="changeQty(this,-1)">−</button>
+      <input type="number" value="1" min="1" max="99" class="qty-input" oninput="onAnyChange()">
+      <button onclick="changeQty(this,1)">+</button>
+    </div>
+    <button class="remove-btn" onclick="this.parentElement.remove();updateExpansion();updatePreview()">×</button>
+  `;
+  list.appendChild(row);
+  row.querySelector('.num-input').focus();
+  if (qtyMode === 'each') {
+    row.querySelector('.qty-ctrl').style.opacity = '0.3';
+    row.querySelector('.qty-ctrl').style.pointerEvents = 'none';
+  }
+}
+
+function changeQty(btn, delta) {
+  const input = btn.parentElement.querySelector('.qty-input');
+  let val = parseInt(input.value) || 1;
+  val = Math.max(1, Math.min(99, val + delta));
+  input.value = val;
+  updatePreview();
+}
+
+function onQtyModeChange() {
+  qtyMode = document.querySelector('input[name="qty-mode"]:checked').value;
+  const eachBar = document.getElementById('each-bar');
+  eachBar.classList.toggle('hidden', qtyMode !== 'each');
+
+  document.querySelectorAll('.qty-ctrl').forEach(ctrl => {
+    if (qtyMode === 'each') {
+      ctrl.style.opacity = '0.3';
+      ctrl.style.pointerEvents = 'none';
+    } else {
+      ctrl.style.opacity = '1';
+      ctrl.style.pointerEvents = 'auto';
+    }
+  });
+
+  if (qtyMode === 'each') applyEachQty();
+  updatePreview();
+}
+
+function applyEachQty() {
+  const eq = parseInt(document.getElementById('each-qty').value) || 1;
+  document.querySelectorAll('.qty-input').forEach(inp => inp.value = eq);
+  updatePreview();
+}
+
+function onNumberInput(el) {
+  updateExpansion();
+  updatePreview();
+}
+
+function onAnyChange() {
+  updateExpansion();
+  updatePreview();
+}
+
+// ===== GET NUMBERS WITH QTY =====
+function getNumberEntries() {
+  const rows = document.querySelectorAll('.num-row');
+  const entries = [];
+  rows.forEach(row => {
+    const val = row.querySelector('.num-input').value.trim();
+    const qty = parseInt(row.querySelector('.qty-input').value) || 1;
+    if (!val) return;
+    val.split(/[\s,\/]+/).forEach(n => {
+      n = n.trim();
+      if (/^\d+$/.test(n)) entries.push({ num: n, qty });
+    });
+  });
+  return entries;
+}
+
+// ===== EXPANSION PREVIEW =====
+function getPermutations(str) {
+  if (str.length <= 1) return [str];
+  const perms = new Set();
+  for (let i = 0; i < str.length; i++) {
+    const rest = str.slice(0, i) + str.slice(i + 1);
+    getPermutations(rest).forEach(p => perms.add(str[i] + p));
+  }
+  return [...perms].sort();
+}
+
+function getABCExpansion(num) {
+  // 2-digit "36" → AB:36, AC:36, BC:36
+  // 3-digit "360" → AB:36,30,60  AC:36,30,60  BC:36,30,60 ... actually ALL means all perms
+  if (num.length === 2) return { AB: [num], AC: [num], BC: [num] };
+  if (num.length === 3) {
+    const [a,b,c] = num.split('');
+    return { AB: [a+b], AC: [a+c], BC: [b+c] };
+  }
+  return {};
+}
+
+function updateExpansion() {
+  const area = document.getElementById('expansion-area');
+  const entries = getNumberEntries();
+  if (entries.length === 0) { area.innerHTML = ''; return; }
+
+  const bt = selectedBetType;
+  let html = '';
+
+  if (bt === 'BOX') {
+    entries.forEach(e => {
+      const perms = getPermutations(e.num);
+      html += `<div class="expansion-preview"><b>${e.num}</b> box → ${perms.join(', ')} (${perms.length} numbers × ${e.qty} qty)</div>`;
+    });
+  } else if (bt === 'ALL') {
+    entries.forEach(e => {
+      if (e.num.length === 2) {
+        html += `<div class="expansion-preview"><b>${e.num}</b> board → AB:${e.num} + AC:${e.num} + BC:${e.num} (3 positions × ${e.qty} qty)</div>`;
+      } else if (e.num.length === 3) {
+        const perms = getPermutations(e.num);
+        const exp = getABCExpansion(e.num);
+        html += `<div class="expansion-preview"><b>${e.num}</b> board → AB:${exp.AB} AC:${exp.AC} BC:${exp.BC} + perms: ${perms.join(', ')} (${perms.length} × ${e.qty} qty)</div>`;
+      }
+    });
+  } else if (['AB','AC','BC','ABC'].includes(bt)) {
+    const total = entries.reduce((s,e) => s + e.qty, 0);
+    html += `<div class="expansion-preview">${bt}: ${entries.map(e=>'<b>'+e.num+'</b>').join(', ')} × qty → ${total} tickets</div>`;
+  }
+
+  area.innerHTML = html;
+}
+
+// ===== VALIDATE =====
+function validateNumbers(entries) {
+  const bt = selectedBetType;
+  const combos = VALID_COMBOS[selectedRate];
+  const btKey = bt === 'BOX' ? 'ALL' : bt;
+  const validDigits = combos && combos[btKey] ? combos[btKey] : [];
+  const errors = [];
+
+  entries.forEach(e => {
+    const d = e.num.length;
+    if (['A','B','C'].includes(bt) && d !== 1) {
+      errors.push(`"${e.num}" must be 1 digit for ${bt}`);
+    } else if (['AB','AC','BC'].includes(bt) && d !== 2) {
+      errors.push(`"${e.num}" must be 2 digits for ${bt}`);
+    } else if (bt === 'ABC' && d !== 3) {
+      errors.push(`"${e.num}" must be 3 digits for ABC`);
+    } else if (bt === 'BOX' && d < 3) {
+      errors.push(`"${e.num}" must be 3+ digits for Box`);
+    } else if (bt === 'DIRECT' && validDigits.length && !validDigits.includes(d)) {
+      errors.push(`"${e.num}" (${d}D) not valid for Rs${selectedRate} Direct — expected ${validDigits.join('/')}D`);
+    }
+  });
+  return errors;
+}
+
+// ===== GENERATE BLOCK TEXT =====
+function generateBlockText(block) {
+  const lines = [];
+  const { lottery, timeslot, rate, betType, entries } = block;
+
+  lines.push(`${lottery} ${timeslot}`);
+  lines.push(`Rs${rate}`);
+
+  if (betType === 'BOX') {
+    entries.forEach(e => lines.push(`${e.num}-${e.qty} box`));
+  } else if (betType === 'ALL') {
+    entries.forEach(e => lines.push(`${e.num}-${e.qty} board`));
+  } else if (['AB','AC','BC','ABC'].includes(betType)) {
+    lines.push(betType);
+    // Group by qty
+    const byQty = {};
+    entries.forEach(e => {
+      (byQty[e.qty] = byQty[e.qty] || []).push(e.num);
+    });
+    for (const [q, nums] of Object.entries(byQty)) {
+      if (parseInt(q) === 1) {
+        lines.push(nums.join(','));
+      } else {
+        lines.push(nums.join(',') + ` each ${q}set`);
+      }
+    }
+  } else if (['A','B','C'].includes(betType)) {
+    entries.forEach(e => {
+      lines.push(`${betType}${e.num}${e.qty > 1 ? ' ' + e.qty + 'set' : ''}`);
+    });
+  } else {
+    // DIRECT
+    entries.forEach(e => lines.push(`${e.num}-${e.qty}`));
+  }
+
+  return lines.join('\n');
+}
+
+function computeBlockStats(block) {
+  let totalTickets = 0;
+  block.entries.forEach(e => {
+    if (block.betType === 'BOX') {
+      totalTickets += getPermutations(e.num).length * e.qty;
+    } else if (block.betType === 'ALL') {
+      if (e.num.length === 2) totalTickets += 3 * e.qty;
+      else if (e.num.length === 3) totalTickets += getPermutations(e.num).length * e.qty;
+      else totalTickets += e.qty;
+    } else {
+      totalTickets += e.qty;
+    }
+  });
+  return { totalTickets, totalAmount: totalTickets * block.rate };
+}
+
+// ===== BLOCKS =====
+function getCurrentBlock() {
+  return {
+    lottery: document.getElementById('lottery').value,
+    timeslot: document.getElementById('timeslot').value,
+    rate: selectedRate,
+    betType: selectedBetType,
+    entries: getNumberEntries()
+  };
+}
+
+function addBlock() {
+  const block = getCurrentBlock();
+  if (block.entries.length === 0) { showToast('Enter numbers first'); return; }
+  const errors = validateNumbers(block.entries);
+  if (errors.length) {
+    document.getElementById('number-validation').textContent = errors[0];
+    return;
+  }
+  document.getElementById('number-validation').textContent = '';
+  blocks.push(block);
+  renderBlocks();
+  // Clear
+  document.getElementById('numbers-list').innerHTML = '';
+  addNumberRow();
+  document.getElementById('expansion-area').innerHTML = '';
+  updatePreview();
+  showToast('Block added');
+}
+
+function removeBlock(i) { blocks.splice(i,1); renderBlocks(); updatePreview(); }
+
+function renderBlocks() {
+  const list = document.getElementById('blocks-list');
+  if (!blocks.length) {
+    list.innerHTML = '<p style="color:#8696a0;font-size:11px">No blocks yet — add numbers and click "Add Block"</p>';
+    return;
+  }
+  list.innerHTML = blocks.map((b,i) => {
+    const s = computeBlockStats(b);
+    const bt = BET_TYPES.find(t=>t.id===b.betType);
+    const nums = b.entries.map(e=>e.num).join(',');
+    return `<div class="block-card">
+      <div class="info">
+        <div class="title">${b.lottery} ${b.timeslot} Rs${b.rate} ${bt?bt.label:b.betType}</div>
+        <div class="detail">${nums} | ${s.totalTickets} tickets | Rs${s.totalAmount}</div>
+      </div>
+      <div class="actions"><button onclick="removeBlock(${i})">🗑</button></div>
+    </div>`;
+  }).join('');
+}
+
+// ===== PREVIEW =====
+function updatePreview() {
+  const block = getCurrentBlock();
+  const errors = validateNumbers(block.entries);
+  document.getElementById('number-validation').textContent = errors.length ? errors[0] : '';
+
+  let parts = blocks.map(b => generateBlockText(b));
+  if (block.entries.length && !errors.length) parts.push(generateBlockText(block));
+
+  document.getElementById('preview-text').textContent = parts.join('\n\n') || '(enter numbers to preview)';
+
+  let totalTickets = 0, totalAmount = 0;
+  const allBlocks = [...blocks, ...(block.entries.length && !errors.length ? [block] : [])];
+  allBlocks.forEach(b => {
+    const s = computeBlockStats(b);
+    totalTickets += s.totalTickets;
+    totalAmount += s.totalAmount;
+  });
+  document.getElementById('preview-stats').innerHTML =
+    `<span class="stat">Tickets: <b>${totalTickets}</b></span>
+     <span class="stat">Amount: <b>Rs${totalAmount}</b></span>
+     <span class="stat">Blocks: <b>${allBlocks.length}</b></span>`;
+}
+
+// ===== GENERATE =====
+function generateOutput() {
+  const current = getCurrentBlock();
+  if (current.entries.length) {
+    const errors = validateNumbers(current.entries);
+    if (errors.length) { document.getElementById('number-validation').textContent = errors[0]; return; }
+    blocks.push(current);
+    renderBlocks();
+    document.getElementById('numbers-list').innerHTML = '';
+    addNumberRow();
+    document.getElementById('expansion-area').innerHTML = '';
+  }
+  if (!blocks.length) { showToast('Add at least one block'); return; }
+
+  const output = blocks.map(b => generateBlockText(b)).join('\n\n');
+  document.getElementById('output-text').textContent = output;
+
+  let totalTickets = 0, totalAmount = 0;
+  blocks.forEach(b => { const s = computeBlockStats(b); totalTickets += s.totalTickets; totalAmount += s.totalAmount; });
+  document.getElementById('output-stats').innerHTML =
+    `<div class="stats"><span class="stat">Total Tickets: <b>${totalTickets}</b></span>
+     <span class="stat">Total Amount: <b>Rs${totalAmount}</b></span>
+     <span class="stat">Blocks: <b>${blocks.length}</b></span></div>`;
+
+  saveToHistory(output, totalTickets, totalAmount);
+  switchTab('output');
+  blocks = [];
+  renderBlocks();
+  updatePreview();
+}
+
+// ===== CLIPBOARD =====
+function copyToClipboard() {
+  const text = document.getElementById('output-text').textContent;
+  if (!text || text === 'No message generated yet.') { showToast('Nothing to copy'); return; }
+  navigator.clipboard.writeText(text).then(() => showToast('Copied!')).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta); showToast('Copied!');
+  });
+}
+function clearOutput() {
+  document.getElementById('output-text').textContent = 'No message generated yet.';
+  document.getElementById('output-stats').innerHTML = '';
+}
+
+// ===== HISTORY =====
+function saveToHistory(text, tickets, amount) {
+  try {
+    const h = JSON.parse(localStorage.getItem('bet_history')||'[]');
+    h.unshift({text, tickets, amount, time: new Date().toLocaleString()});
+    if (h.length > 20) h.length = 20;
+    localStorage.setItem('bet_history', JSON.stringify(h));
+    loadHistory();
+  } catch(e){}
+}
+function loadHistory() {
+  try {
+    const h = JSON.parse(localStorage.getItem('bet_history')||'[]');
+    const list = document.getElementById('history-list');
+    if (!h.length) { list.innerHTML = '<p style="color:#8696a0;font-size:12px">No history yet.</p>'; return; }
+    list.innerHTML = h.map((item,i) => `
+      <div class="history-item" onclick="loadFromHistory(${i})">
+        <div class="time">${item.time} | ${item.tickets} tickets | Rs${item.amount}</div>
+        <div class="text">${esc(item.text)}</div>
+      </div>`).join('');
+  } catch(e){}
+}
+function loadFromHistory(i) {
+  try {
+    const h = JSON.parse(localStorage.getItem('bet_history')||'[]');
+    if (h[i]) {
+      document.getElementById('output-text').textContent = h[i].text;
+      document.getElementById('output-stats').innerHTML =
+        `<div class="stats"><span class="stat">Tickets: <b>${h[i].tickets}</b></span><span class="stat">Amount: <b>Rs${h[i].amount}</b></span></div>`;
+      switchTab('output');
+    }
+  } catch(e){}
+}
+function clearHistory() { localStorage.removeItem('bet_history'); loadHistory(); showToast('History cleared'); }
+
+// ===== TABS =====
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('[id^="tab-"]').forEach(t=>t.classList.add('hidden'));
+  document.getElementById('tab-'+tab).classList.remove('hidden');
+  document.querySelectorAll('.tab')[['compose','output','history'].indexOf(tab)].classList.add('active');
+}
+
+// ===== UTILS =====
+function onLotteryChange() { buildTimeslots(); updatePreview(); }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2000);
+}
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
+
+init();
+</script>
+</body>
+</html>

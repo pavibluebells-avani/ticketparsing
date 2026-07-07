@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+collector/node_modules/
+worker/node_modules/
+dashboard/node_modules/
+
+# Auth state (sensitive)
+collector/auth/
+
+# Local dev secrets
+worker/.dev.vars
+
+# State files (runtime)
+collector/data/
+collector/group_cache.json
+
+# Python
+__pycache__/
+*.pyc
+tools/reports/
+
+# OS
+.DS_Store
+*.log
+
+# Data files (too large for git)
+data/raw/*.jsonl
+
+# Backups
+*.zip
+*.bak
