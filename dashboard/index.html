@@ -1,78 +1,1738 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ticket Dashboard</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lottery Betting Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* =========================================================
+   LOTTERY BETTING DASHBOARD — Light Theme
+   ========================================================= */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #f5f5f0;
+  --text: #2c2c2a;
+  --muted: #767671;
+  --card-bg: #ffffff;
+  --border: rgba(0,0,0,0.1);
+  --accent: #3C3489;
+  --accent-2: #085041;
+  --green: #1f8a4c;
+  --red: #c0392b;
+  --amber: #b5750a;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.4;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+a { color: inherit; }
+
+/* ---------------- Header ---------------- */
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+header .subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  background: white;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.status-badge .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.status-badge.online { color: var(--green); }
+.status-badge.online .dot { background: var(--green); box-shadow: 0 0 0 3px rgba(31,138,76,0.15); }
+.status-badge.offline { color: var(--red); }
+.status-badge.offline .dot { background: var(--red); box-shadow: 0 0 0 3px rgba(192,57,43,0.15); }
+
+/* ---------------- Filters ---------------- */
+
+.filters-bar {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.filters-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filters-row select,
+.filters-row input[type="text"],
+.filters-row input[type="search"] {
+  background: #faf9f6;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.filters-row select:focus,
+.filters-row input:focus {
+  border-color: var(--accent);
+}
+
+#search-input {
+  min-width: 220px;
+  flex: 1 1 220px;
+}
+
+.filters-row button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 9px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.filters-row button:hover { opacity: 0.9; }
+
+.filters-row button.reset-btn {
+  background: #efeee8;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.breadcrumbs {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 14px;
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #EEEDFE;
+  color: #3C3489;
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-weight: 600;
+}
+
+.crumb .x {
+  cursor: pointer;
+  font-weight: 700;
+  opacity: 0.6;
+}
+.crumb .x:hover { opacity: 1; }
+
+/* ---------------- Stats Grid ---------------- */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.stat-sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ---------------- Charts ---------------- */
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.charts-grid.bar-row {
+  grid-template-columns: 1fr;
+  margin-bottom: 24px;
+}
+
+.chart-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.chart-card h3 {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.chart-wrap {
+  position: relative;
+  height: 220px;
+}
+
+.charts-grid.bar-row .chart-wrap {
+  height: 260px;
+}
+
+.chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ---------------- Table ---------------- */
+
+.table-section {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.table-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.table-section-header h3 {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  background: #faf9f6;
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+td {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  vertical-align: top;
+}
+
+td.empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 40px;
+}
+
+tbody tr { cursor: pointer; }
+tbody tr:hover td { background: #faf9f6; }
+
+td.time-col { white-space: nowrap; color: var(--muted); width: 130px; font-size: 12px; }
+td.group-col { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+td.sender-col { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+
+/* Pills */
+.pill {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.p-dear { background: #EEEDFE; color: #3C3489; }
+.p-kerala { background: #E1F5EE; color: #085041; }
+.p-goa { background: #FAEEDA; color: #633806; }
+.p-rate { background: #E6F1FB; color: #0C447C; }
+.p-ts { background: #FFF5E6; color: #633806; }
+.p-cat { background: #F1F0EC; color: #4a4a45; }
+.p-none { color: var(--muted); font-size: 12px; }
+
+/* Pagination */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.pagination button {
+  background: #faf9f6;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.pagination button:disabled { opacity: 0.35; cursor: default; }
+.pagination button:hover:not(:disabled) { background: #efeee8; }
+
+#page-info { font-size: 13px; color: var(--muted); }
+
+/* ---------------- Message Detail Panel ---------------- */
+
+.detail-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(30,28,20,0.4);
+  z-index: 100;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
+}
+
+.detail-overlay.open { display: flex; }
+
+.detail-panel {
+  background: var(--card-bg);
+  border-radius: 14px;
+  max-width: 980px;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-header h3 { font-size: 15px; font-weight: 700; }
+
+.detail-header .meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+.detail-close {
+  background: #efeee8;
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.detail-close:hover { background: #e0dfd8; }
+
+.detail-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+.detail-col {
+  padding: 20px 22px;
+}
+
+.detail-col + .detail-col {
+  border-left: 1px solid var(--border);
+}
+
+.detail-col h4 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.raw-text-box {
+  background: #faf9f6;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.token {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin: 1px 1px;
+  font-weight: 600;
+  color: #2c2c2a;
+}
+
+.tok-BETTING_NUMBER { background: #b4befe; }
+.tok-BET_TYPE { background: #89b4fa; }
+.tok-RATE { background: #fab387; }
+.tok-QTY { background: #a6e3a1; }
+.tok-LOTTERY { background: #cba6f7; }
+.tok-TIMESLOT { background: #f9e2af; }
+.tok-POSITION { background: #f38ba8; }
+.tok-SEPARATOR { background: #6c7086; color: white; }
+.tok-IGNORE { background: #e0dfd8; color: #999; }
+.tok-OTHER { background: #ececec; color: #999; }
+
+.legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+  margin-bottom: 18px;
+}
+
+.legend-chip {
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.yaml-box {
+  background: #2c2c2a;
+  color: #e8e6df;
+  border-radius: 8px;
+  padding: 14px;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  line-height: 1.7;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.yaml-key { color: #89b4fa; }
+.yaml-str { color: #a6e3a1; }
+.yaml-num { color: #fab387; }
+.yaml-dash { color: #f38ba8; }
+.yaml-comment { color: #6c7086; }
+
+/* ---------------- Footer / misc ---------------- */
+
+.updated-note {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 20px;
+}
+
+/* ---------------- Responsive ---------------- */
+
+@media (max-width: 900px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .charts-grid { grid-template-columns: 1fr; }
+  .detail-body { grid-template-columns: 1fr; }
+  .detail-col + .detail-col { border-left: none; border-top: 1px solid var(--border); }
+}
+
+@media (max-width: 640px) {
+  header { flex-direction: column; }
+  td.group-col, th:nth-child(2) { display: none; }
+}
+</style>
 </head>
 <body>
-    <div class="container">
+<div class="container">
 
-        <!-- Header -->
-        <header>
-            <h1>Ticket Dashboard</h1>
-            <div id="collector-status" class="status-badge offline">
-                <span class="dot"></span>
-                <span id="status-text">Checking...</span>
-            </div>
-        </header>
-
-        <!-- Stats Cards -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-value" id="total-messages">—</div>
-                <div class="stat-label">Total Messages</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="today-messages">—</div>
-                <div class="stat-label">Today</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="total-groups">—</div>
-                <div class="stat-label">Groups</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="last-seen">—</div>
-                <div class="stat-label">Last Seen</div>
-            </div>
-        </div>
-
-        <!-- Filters -->
-        <div class="filters">
-            <select id="group-filter">
-                <option value="">All Groups</option>
-            </select>
-            <input type="date" id="date-filter" />
-            <button onclick="loadMessages()">Refresh</button>
-        </div>
-
-        <!-- Messages Table -->
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Time</th>
-                        <th>Group</th>
-                        <th>Sender</th>
-                        <th>Message</th>
-                    </tr>
-                </thead>
-                <tbody id="messages-body">
-                    <tr><td colspan="4" class="empty">Loading...</td></tr>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Pagination -->
-        <div class="pagination">
-            <button id="prev-btn" onclick="prevPage()" disabled>Previous</button>
-            <span id="page-info">Page 1</span>
-            <button id="next-btn" onclick="nextPage()">Next</button>
-        </div>
-
+  <!-- Header -->
+  <header>
+    <div>
+      <h1>Lottery Betting Dashboard</h1>
+      <div class="subtitle" id="header-subtitle">Loading stats…</div>
     </div>
+    <div id="collector-status" class="status-badge offline">
+      <span class="dot"></span>
+      <span id="status-text">Checking…</span>
+    </div>
+  </header>
 
-    <script src="app.js"></script>
+  <!-- Filters -->
+  <div class="filters-bar">
+    <div class="filters-row">
+      <select id="f-date"><option value="">All Dates</option></select>
+      <select id="f-group"><option value="">All Groups</option></select>
+      <select id="f-lottery">
+        <option value="">All Lotteries</option>
+        <option value="DEAR">DEAR</option>
+        <option value="KERALA">KERALA</option>
+        <option value="GOA">GOA</option>
+      </select>
+      <select id="f-timeslot">
+        <option value="">All Timeslots</option>
+        <option value="1PM">1PM</option>
+        <option value="3PM">3PM</option>
+        <option value="5PM">5PM</option>
+        <option value="6PM">6PM</option>
+        <option value="7PM">7PM</option>
+        <option value="8PM">8PM</option>
+        <option value="12PM">12PM</option>
+      </select>
+      <select id="f-category">
+        <option value="">All Categories</option>
+        <option value="FULL">FULL</option>
+        <option value="HALF">HALF</option>
+        <option value="AB/BC/AC">AB/BC/AC</option>
+        <option value="3D10">3D10</option>
+        <option value="3D25">3D25</option>
+        <option value="4D20">4D20</option>
+        <option value="4D50">4D50</option>
+        <option value="4D100">4D100</option>
+        <option value="ABC">ABC</option>
+        <option value="5D">5D</option>
+        <option value="SINGLE">SINGLE</option>
+      </select>
+      <select id="f-rate">
+        <option value="">All Rates</option>
+        <option value="10">₹10</option>
+        <option value="12">₹12</option>
+        <option value="20">₹20</option>
+        <option value="25">₹25</option>
+        <option value="30">₹30</option>
+        <option value="50">₹50</option>
+        <option value="60">₹60</option>
+        <option value="100">₹100</option>
+      </select>
+      <input type="search" id="search-input" placeholder="Search message text…" />
+      <button onclick="applyFilters()">Apply</button>
+      <button class="reset-btn" onclick="resetFilters()">Reset</button>
+    </div>
+    <div class="breadcrumbs" id="breadcrumbs"></div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value" id="total-messages">—</div>
+      <div class="stat-label">Total Messages</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="today-messages">—</div>
+      <div class="stat-label">Today's Messages</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="total-groups">—</div>
+      <div class="stat-label">Active Groups</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="collector-value">—</div>
+      <div class="stat-label">Collector Status</div>
+      <div class="stat-sub" id="last-seen-sub">—</div>
+    </div>
+  </div>
+
+  <!-- Charts: pies -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3>By Lottery</h3>
+      <div class="chart-wrap"><canvas id="chart-lottery"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>By Category</h3>
+      <div class="chart-wrap"><canvas id="chart-category"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>By Timeslot</h3>
+      <div class="chart-wrap"><canvas id="chart-timeslot"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Charts: bar -->
+  <div class="charts-grid bar-row">
+    <div class="chart-card">
+      <h3>Daily Volume</h3>
+      <div class="chart-wrap"><canvas id="chart-daily"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Messages table -->
+  <div class="table-section">
+    <div class="table-section-header">
+      <h3>Messages</h3>
+      <span class="stat-sub" id="table-count-note"></span>
+    </div>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Group</th>
+            <th>Sender</th>
+            <th>Lottery</th>
+            <th>Category</th>
+            <th>Rate</th>
+            <th>Message</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="messages-body">
+          <tr><td colspan="8" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <button id="prev-btn" onclick="prevPage()" disabled>Previous</button>
+      <span id="page-info">Page 1</span>
+      <button id="next-btn" onclick="nextPage()">Next</button>
+    </div>
+  </div>
+
+  <div class="updated-note" id="updated-note"></div>
+</div>
+
+<!-- Detail overlay -->
+<div class="detail-overlay" id="detail-overlay" onclick="if(event.target===this) closeDetail()">
+  <div class="detail-panel">
+    <div class="detail-header">
+      <div>
+        <h3>Message Detail</h3>
+        <div class="meta" id="detail-meta">—</div>
+      </div>
+      <button class="detail-close" onclick="closeDetail()">✕</button>
+    </div>
+    <div class="detail-body">
+      <div class="detail-col">
+        <h4>Raw Message</h4>
+        <div class="raw-text-box" id="detail-raw"></div>
+        <div class="legend-row">
+          <span class="legend-chip tok-BETTING_NUMBER">NUMBER</span>
+          <span class="legend-chip tok-BET_TYPE">BET_TYPE</span>
+          <span class="legend-chip tok-RATE">RATE</span>
+          <span class="legend-chip tok-QTY">QTY</span>
+          <span class="legend-chip tok-LOTTERY">LOTTERY</span>
+          <span class="legend-chip tok-TIMESLOT">TIMESLOT</span>
+          <span class="legend-chip tok-POSITION">POSITION</span>
+          <span class="legend-chip tok-SEPARATOR">SEP</span>
+        </div>
+      </div>
+      <div class="detail-col">
+        <h4>Parsed Breakdown</h4>
+        <div class="yaml-box" id="detail-yaml"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   CONFIG
+   ========================================================= */
+
+const API_BASE = "https://ticket-api.officembx.workers.dev";
+const PAGE_SIZE = 100;
+
+let currentPage = 0;
+let allMessagesCache = [];   // messages currently loaded for current filter/page (parsed)
+let allLoadedForCharts = []; // broader set used to build chart aggregates (best-effort, current page based)
+let groupsList = [];
+let filters = { date: "", group: "", lottery: "", timeslot: "", category: "", rate: "", q: "" };
+let charts = {};
+
+/* =========================================================
+   INIT
+   ========================================================= */
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadDashboard();
+  loadGroups();
+  loadMessages();
+
+  document.getElementById("search-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") applyFilters();
+  });
+
+  setInterval(() => {
+    loadDashboard();
+    loadMessages();
+  }, 30000);
+});
+
+/* =========================================================
+   API HELPERS
+   ========================================================= */
+
+async function safeFetchJson(url) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return await res.json();
+  } catch (err) {
+    console.log("Fetch error:", url, err);
+    return null;
+  }
+}
+
+/* =========================================================
+   DASHBOARD STATS
+   ========================================================= */
+
+async function loadDashboard() {
+  const data = await safeFetchJson(`${API_BASE}/api/dashboard`);
+  if (!data) return;
+
+  document.getElementById("total-messages").textContent = (data.total_messages || 0).toLocaleString();
+  document.getElementById("today-messages").textContent = (data.today_messages || 0).toLocaleString();
+  document.getElementById("total-groups").textContent = data.total_groups || 0;
+
+  const badge = document.getElementById("collector-status");
+  const statusText = document.getElementById("status-text");
+  const collectorValue = document.getElementById("collector-value");
+  const lastSeenSub = document.getElementById("last-seen-sub");
+
+  if (data.collector && data.collector.last_seen) {
+    const ago = Math.floor((Date.now() - data.collector.last_seen) / 1000);
+    if (ago < 600) {
+      badge.className = "status-badge online";
+      statusText.textContent = "Collector Online";
+      collectorValue.textContent = "Online";
+    } else {
+      badge.className = "status-badge offline";
+      statusText.textContent = `Offline (${formatAgo(ago)})`;
+      collectorValue.textContent = "Offline";
+    }
+    lastSeenSub.textContent = "Last seen " + formatAgo(ago);
+  } else {
+    badge.className = "status-badge offline";
+    statusText.textContent = "Never connected";
+    collectorValue.textContent = "Unknown";
+    lastSeenSub.textContent = "Never connected";
+  }
+
+  document.getElementById("header-subtitle").textContent =
+    `${(data.total_messages || 0).toLocaleString()} messages across ${data.total_groups || 0} groups`;
+
+  document.getElementById("updated-note").textContent =
+    "Last updated " + new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+/* =========================================================
+   GROUPS
+   ========================================================= */
+
+async function loadGroups() {
+  const data = await safeFetchJson(`${API_BASE}/api/groups`);
+  if (!data || !data.groups) return;
+  groupsList = data.groups;
+
+  const select = document.getElementById("f-group");
+  for (const group of data.groups) {
+    const option = document.createElement("option");
+    option.value = group.group_jid;
+    option.textContent = `${group.group_name || group.group_jid} (${group.message_count})`;
+    select.appendChild(option);
+  }
+}
+
+/* =========================================================
+   MESSAGES LOAD + FILTER
+   ========================================================= */
+
+async function loadMessages() {
+  const tbody = document.getElementById("messages-body");
+  const hasClientFilters = filters.lottery || filters.timeslot || filters.category || filters.rate || filters.q;
+
+  // If client-side filters are active, fetch a larger batch to filter from
+  const fetchLimit = hasClientFilters ? 1000 : PAGE_SIZE;
+
+  let url = `${API_BASE}/api/messages?limit=${fetchLimit}&offset=0`;
+  if (filters.group) url += `&group=${encodeURIComponent(filters.group)}`;
+  if (filters.date) url += `&date=${filters.date}`;
+
+  // If no client filters, use server-side pagination
+  if (!hasClientFilters) {
+    url = `${API_BASE}/api/messages?limit=${PAGE_SIZE}&offset=${currentPage * PAGE_SIZE}`;
+    if (filters.group) url += `&group=${encodeURIComponent(filters.group)}`;
+    if (filters.date) url += `&date=${filters.date}`;
+  }
+
+  const data = await safeFetchJson(url);
+  if (!data) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Failed to load messages</td></tr>';
+    return;
+  }
+
+  const rawMessages = data.messages || [];
+
+  // Parse each message client-side
+  const parsedMessages = rawMessages.map(msg => {
+    const parsed = parseMessage(msg);
+    return { msg, parsed };
+  });
+
+  populateDateFilterOptions(rawMessages);
+
+  // Apply client-side filters (lottery/timeslot/category/rate/search)
+  const filtered = parsedMessages.filter(({ msg, parsed }) => applyClientFilters(msg, parsed));
+
+  // Client-side pagination when filters are active
+  let displayItems;
+  let totalFiltered = filtered.length;
+  if (hasClientFilters) {
+    const start = currentPage * PAGE_SIZE;
+    displayItems = filtered.slice(start, start + PAGE_SIZE);
+  } else {
+    displayItems = filtered;
+  }
+
+  allMessagesCache = displayItems;
+  allLoadedForCharts = parsedMessages;
+
+  renderTable(displayItems);
+  renderCharts(hasClientFilters ? filtered : parsedMessages);
+
+  if (hasClientFilters) {
+    const totalPages = Math.ceil(totalFiltered / PAGE_SIZE) || 1;
+    document.getElementById("prev-btn").disabled = currentPage === 0;
+    document.getElementById("next-btn").disabled = currentPage >= totalPages - 1;
+    document.getElementById("page-info").textContent = `Page ${currentPage + 1} of ${totalPages}`;
+    document.getElementById("table-count-note").textContent =
+      `${totalFiltered} messages match filters`;
+  } else {
+    document.getElementById("prev-btn").disabled = currentPage === 0;
+    document.getElementById("next-btn").disabled = rawMessages.length < PAGE_SIZE;
+    document.getElementById("page-info").textContent = `Page ${currentPage + 1}`;
+    document.getElementById("table-count-note").textContent =
+      `${rawMessages.length} messages loaded`;
+  }
+
+  renderBreadcrumbs();
+}
+
+function applyClientFilters(msg, parsed) {
+  if (filters.lottery && parsed.lottery !== filters.lottery) return false;
+  if (filters.timeslot && parsed.timeslot !== filters.timeslot) return false;
+  if (filters.category && !(parsed.categories || []).includes(filters.category)) return false;
+  if (filters.rate && !(parsed.rates || []).includes(Number(filters.rate))) return false;
+  if (filters.q) {
+    const hay = (msg.text || "").toLowerCase();
+    if (!hay.includes(filters.q.toLowerCase())) return false;
+  }
+  return true;
+}
+
+function populateDateFilterOptions(messages) {
+  const sel = document.getElementById("f-date");
+  const existing = new Set(Array.from(sel.options).map(o => o.value));
+  const dates = new Set();
+  for (const m of messages) {
+    if (m.whatsapp_timestamp) {
+      const d = new Date(m.whatsapp_timestamp * 1000);
+      const iso = d.toISOString().slice(0, 10);
+      dates.add(iso);
+    }
+  }
+  const sorted = Array.from(dates).sort().reverse();
+  for (const d of sorted) {
+    if (!existing.has(d)) {
+      const opt = document.createElement("option");
+      opt.value = d;
+      opt.textContent = d;
+      sel.appendChild(opt);
+    }
+  }
+}
+
+/* =========================================================
+   FILTER UI
+   ========================================================= */
+
+function applyFilters() {
+  filters.date = document.getElementById("f-date").value;
+  filters.group = document.getElementById("f-group").value;
+  filters.lottery = document.getElementById("f-lottery").value;
+  filters.timeslot = document.getElementById("f-timeslot").value;
+  filters.category = document.getElementById("f-category").value;
+  filters.rate = document.getElementById("f-rate").value;
+  filters.q = document.getElementById("search-input").value.trim();
+  currentPage = 0;
+  loadMessages();
+}
+
+function resetFilters() {
+  filters = { date: "", group: "", lottery: "", timeslot: "", category: "", rate: "", q: "" };
+  document.getElementById("f-date").value = "";
+  document.getElementById("f-group").value = "";
+  document.getElementById("f-lottery").value = "";
+  document.getElementById("f-timeslot").value = "";
+  document.getElementById("f-category").value = "";
+  document.getElementById("f-rate").value = "";
+  document.getElementById("search-input").value = "";
+  currentPage = 0;
+  loadMessages();
+}
+
+function setFilterAndReload(key, value) {
+  filters[key] = value;
+  const idMap = {
+    date: "f-date", group: "f-group", lottery: "f-lottery",
+    timeslot: "f-timeslot", category: "f-category", rate: "f-rate"
+  };
+  if (idMap[key]) {
+    const el = document.getElementById(idMap[key]);
+    if (el) el.value = value;
+  }
+  if (key === "q") document.getElementById("search-input").value = value;
+  currentPage = 0;
+  loadMessages();
+}
+
+function renderBreadcrumbs() {
+  const container = document.getElementById("breadcrumbs");
+  const labels = {
+    date: "Date", group: "Group", lottery: "Lottery",
+    timeslot: "Timeslot", category: "Category", rate: "Rate", q: "Search"
+  };
+  const parts = [];
+  for (const key of Object.keys(labels)) {
+    const val = filters[key];
+    if (!val) continue;
+    let display = val;
+    if (key === "group") {
+      const g = groupsList.find(g => g.group_jid === val);
+      display = g ? (g.group_name || g.group_jid) : val;
+    }
+    if (key === "rate") display = "₹" + val;
+    parts.push(`<span class="crumb">${labels[key]}: ${escapeHtml(display)} <span class="x" onclick="setFilterAndReload('${key}','')">✕</span></span>`);
+  }
+  container.innerHTML = parts.join("");
+}
+
+/* =========================================================
+   PAGINATION
+   ========================================================= */
+
+function prevPage() {
+  if (currentPage > 0) {
+    currentPage--;
+    loadMessages();
+  }
+}
+
+function nextPage() {
+  currentPage++;
+  loadMessages();
+}
+
+/* =========================================================
+   TABLE RENDERING
+   ========================================================= */
+
+function renderTable(filtered) {
+  const tbody = document.getElementById("messages-body");
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">No messages found</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(({ msg, parsed }, idx) => {
+    const time = msg.whatsapp_timestamp
+      ? new Date(msg.whatsapp_timestamp * 1000).toLocaleString("en-IN", {
+          day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true
+        })
+      : "—";
+
+    const text = escapeHtml(truncate(msg.text || "", 90));
+    const sender = escapeHtml(msg.push_name || msg.sender || "Unknown");
+    const group = escapeHtml(msg.group_name || msg.group_jid || "—");
+
+    const lotteryPill = parsed.lottery ? lotteryPillHtml(parsed.lottery) : '<span class="p-none">—</span>';
+    const catPill = parsed.categories && parsed.categories.length
+      ? parsed.categories.slice(0, 2).map(c => `<span class="pill p-cat">${escapeHtml(c)}</span>`).join(" ")
+      : '<span class="p-none">—</span>';
+    const ratePill = parsed.rates && parsed.rates.length
+      ? parsed.rates.slice(0, 2).map(r => `<span class="pill p-rate">₹${r}</span>`).join(" ")
+      : '<span class="p-none">—</span>';
+
+    return `<tr onclick="openDetail(${idx})" style="cursor:pointer">
+      <td class="time-col">${time}</td>
+      <td class="group-col" title="${group}">${group}</td>
+      <td class="sender-col" title="${sender}">${sender}</td>
+      <td>${lotteryPill}</td>
+      <td>${catPill}</td>
+      <td>${ratePill}</td>
+      <td class="msg-col" title="${text}">${text}</td>
+      <td style="color:#378ADD;font-size:11px;white-space:nowrap;cursor:pointer">View ›</td>
+    </tr>`;
+  }).join("");
+}
+
+function lotteryPillHtml(lottery) {
+  const cls = lottery === "DEAR" ? "p-dear" : lottery === "KERALA" ? "p-kerala" : lottery === "GOA" ? "p-goa" : "p-cat";
+  return `<span class="pill ${cls}">${escapeHtml(lottery)}</span>`;
+}
+
+function truncate(str, n) {
+  if (!str) return "";
+  const oneLine = str.replace(/\s+/g, " ").trim();
+  return oneLine.length > n ? oneLine.slice(0, n - 1) + "…" : oneLine;
+}
+
+/* =========================================================
+   CHARTS
+   ========================================================= */
+
+function renderCharts(parsedMessages) {
+  const lotteryCounts = {};
+  const categoryCounts = {};
+  const timeslotCounts = {};
+  const dailyCounts = {};
+
+  for (const { msg, parsed } of parsedMessages) {
+    if (parsed.lottery) lotteryCounts[parsed.lottery] = (lotteryCounts[parsed.lottery] || 0) + 1;
+    for (const c of (parsed.categories || [])) categoryCounts[c] = (categoryCounts[c] || 0) + 1;
+    if (parsed.timeslot) timeslotCounts[parsed.timeslot] = (timeslotCounts[parsed.timeslot] || 0) + 1;
+
+    if (msg.whatsapp_timestamp) {
+      const d = new Date(msg.whatsapp_timestamp * 1000).toISOString().slice(0, 10);
+      dailyCounts[d] = (dailyCounts[d] || 0) + 1;
+    }
+  }
+
+  renderPieChart("chart-lottery", lotteryCounts, "lottery", ["#3C3489", "#085041", "#633806", "#767671"]);
+  renderPieChart("chart-category", categoryCounts, "category", palette());
+  renderPieChart("chart-timeslot", timeslotCounts, "timeslot", palette());
+  renderDailyBar("chart-daily", dailyCounts);
+}
+
+function palette() {
+  return ["#3C3489", "#085041", "#633806", "#0C447C", "#c0392b", "#b5750a", "#1f8a4c", "#767671", "#8b5cf6", "#f97316"];
+}
+
+function renderPieChart(canvasId, countsObj, filterKey, colors) {
+  const el = document.getElementById(canvasId);
+  const parent = el.parentElement;
+  const labels = Object.keys(countsObj);
+  const values = Object.values(countsObj);
+
+  if (typeof Chart === "undefined") {
+    parent.innerHTML = '<div class="chart-empty">Chart.js unavailable (offline)</div>';
+    return;
+  }
+
+  if (labels.length === 0) {
+    if (charts[canvasId]) { charts[canvasId].destroy(); charts[canvasId] = null; }
+    if (!parent.querySelector("canvas")) {
+      parent.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+    } else {
+      const ctx = document.getElementById(canvasId).getContext("2d");
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    }
+    return;
+  }
+
+  if (!parent.querySelector("canvas")) {
+    parent.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+  }
+  const ctx = document.getElementById(canvasId).getContext("2d");
+
+  if (charts[canvasId]) charts[canvasId].destroy();
+
+  charts[canvasId] = new Chart(ctx, {
+    type: "pie",
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: labels.map((_, i) => colors[i % colors.length]),
+        borderWidth: 1,
+        borderColor: "#fff"
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 11 } } }
+      },
+      onClick: (evt, elements) => {
+        if (!elements.length) return;
+        const idx = elements[0].index;
+        const label = labels[idx];
+        setFilterAndReload(filterKey, label);
+      }
+    }
+  });
+}
+
+function renderDailyBar(canvasId, countsObj) {
+  const el = document.getElementById(canvasId);
+  const parent = el.parentElement;
+
+  if (typeof Chart === "undefined") {
+    parent.innerHTML = '<div class="chart-empty">Chart.js unavailable (offline)</div>';
+    return;
+  }
+
+  const dates = Object.keys(countsObj).sort();
+
+  if (dates.length === 0) {
+    if (charts[canvasId]) { charts[canvasId].destroy(); charts[canvasId] = null; }
+    if (!parent.querySelector("canvas")) {
+      parent.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+    }
+    return;
+  }
+
+  if (!parent.querySelector("canvas")) {
+    parent.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+  }
+  const ctx = document.getElementById(canvasId).getContext("2d");
+  const values = dates.map(d => countsObj[d]);
+
+  if (charts[canvasId]) charts[canvasId].destroy();
+
+  charts[canvasId] = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: dates,
+      datasets: [{
+        label: "Messages",
+        data: values,
+        backgroundColor: "#3C3489",
+        borderRadius: 4,
+        maxBarThickness: 40
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 } }
+      },
+      onClick: (evt, elements) => {
+        if (!elements.length) return;
+        const idx = elements[0].index;
+        setFilterAndReload("date", dates[idx]);
+      }
+    }
+  });
+}
+
+/* =========================================================
+   MESSAGE DETAIL PANEL
+   ========================================================= */
+
+function openDetail(idx) {
+  const item = allMessagesCache[idx];
+  if (!item) return;
+  const { msg, parsed } = item;
+
+  const time = msg.whatsapp_timestamp
+    ? new Date(msg.whatsapp_timestamp * 1000).toLocaleString("en-IN", {
+        day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true
+      })
+    : "—";
+
+  document.getElementById("detail-meta").textContent =
+    `${msg.group_name || msg.group_jid || "Unknown group"} · ${msg.push_name || msg.sender || "Unknown sender"} · ${time}`;
+
+  document.getElementById("detail-raw").innerHTML = renderTokenHtml(parsed.classified);
+  document.getElementById("detail-yaml").innerHTML = renderYamlHtml(msg, parsed);
+
+  document.getElementById("detail-overlay").classList.add("open");
+}
+
+function closeDetail() {
+  document.getElementById("detail-overlay").classList.remove("open");
+}
+
+function renderTokenHtml(classified) {
+  if (!classified || classified.length === 0) return "<em>No tokens parsed.</em>";
+  return classified.map(tok => {
+    const cls = "tok-" + (TOKEN_COLOR_CLASSES[tok.type] ? tok.type : "OTHER");
+    if (tok.type === "ws") return escapeHtml(tok.raw);
+    if (tok.type === "SEPARATOR") return `<span class="token ${cls}">${escapeHtml(tok.raw)}</span>`;
+    if (tok.type === "IGNORE" || tok.type === "OTHER") {
+      return `<span>${escapeHtml(tok.raw)}</span>`;
+    }
+    return `<span class="token ${cls}">${escapeHtml(tok.raw)}</span>`;
+  }).join("");
+}
+
+const TOKEN_COLOR_CLASSES = {
+  BETTING_NUMBER: true, BET_TYPE: true, RATE: true, QTY: true,
+  LOTTERY: true, TIMESLOT: true, POSITION: true, SEPARATOR: true
+};
+
+function renderYamlHtml(msg, parsed) {
+  const lines = [];
+  lines.push(`<span class="yaml-comment"># message_id: ${escapeHtml(msg.message_id || "")}</span>`);
+  lines.push(`<span class="yaml-key">group:</span> <span class="yaml-str">"${escapeHtml(msg.group_name || msg.group_jid || "")}"</span>`);
+  lines.push(`<span class="yaml-key">sender:</span> <span class="yaml-str">"${escapeHtml(msg.push_name || msg.sender || "")}"</span>`);
+  lines.push(`<span class="yaml-key">lottery:</span> <span class="yaml-str">${parsed.lottery ? escapeHtml(parsed.lottery) : "null"}</span>`);
+  lines.push(`<span class="yaml-key">timeslot:</span> <span class="yaml-str">${parsed.timeslot ? escapeHtml(parsed.timeslot) : "null"}</span>`);
+  lines.push(`<span class="yaml-key">entries:</span>`);
+
+  if (!parsed.entries || parsed.entries.length === 0) {
+    lines.push(`  <span class="yaml-comment"># no entries extracted</span>`);
+  } else {
+    for (const entry of parsed.entries) {
+      lines.push(`  <span class="yaml-dash">-</span> <span class="yaml-key">number:</span> <span class="yaml-num">${escapeHtml(entry.number)}</span>`);
+      lines.push(`    <span class="yaml-key">position:</span> <span class="yaml-str">${entry.position ? escapeHtml(entry.position) : "null"}</span>`);
+      lines.push(`    <span class="yaml-key">qty:</span> <span class="yaml-num">${entry.qty}</span>`);
+      lines.push(`    <span class="yaml-key">rate:</span> <span class="yaml-num">${entry.rate != null ? entry.rate : "null"}</span>`);
+      lines.push(`    <span class="yaml-key">category:</span> <span class="yaml-str">${entry.category ? escapeHtml(entry.category) : "null"}</span>`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text == null ? "" : String(text);
+  return div.innerHTML;
+}
+
+function formatAgo(seconds) {
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+/* =========================================================================
+   =========================================================================
+   CLIENT-SIDE LOTTERY MESSAGE PARSER
+   Ported (simplified, first-pass) from tools/lottery_parser_v5.py
+   =========================================================================
+   ========================================================================= */
+
+/* ---------------- Lexicon ---------------- */
+
+const KNOWN = {
+  // LOTTERY
+  "dear": "LOTTERY", "dr": "LOTTERY", "deer": "LOTTERY", "der": "LOTTERY", "dl": "LOTTERY",
+  "kerala": "LOTTERY", "kerela": "LOTTERY", "kl": "LOTTERY",
+  "goa": "LOTTERY",
+  // BET_TYPE
+  "full": "BET_TYPE", "half": "BET_TYPE", "box": "BET_TYPE", "xbox": "BET_TYPE", "single": "BET_TYPE",
+  "digital": "BET_TYPE", "degital": "BET_TYPE", "degtel": "BET_TYPE", "digit": "BET_TYPE",
+  // POSITION
+  "a": "POSITION", "b": "POSITION", "c": "POSITION", "d": "POSITION", "e": "POSITION",
+  "ab": "POSITION", "bc": "POSITION", "ac": "POSITION", "abc": "POSITION",
+  "all": "POSITION", "board": "POSITION", "bord": "POSITION", "borad": "POSITION", "bort": "POSITION",
+  // QTY
+  "set": "QTY", "sets": "QTY", "each": "QTY", "ech": "QTY", "ea": "QTY",
+  "pes": "QTY", "pcs": "QTY", "st": "QTY", "sat": "QTY",
+  // RATE
+  "rs": "RATE", "rupise": "RATE", "ra": "RATE", "pice": "RATE", "₹": "RATE", "re": "RATE",
+  // TIMESLOT
+  "pm": "TIMESLOT", "am": "TIMESLOT",
+  // IGNORE
+  "cancel": "IGNORE", "ok": "IGNORE", "okay": "IGNORE", "done": "IGNORE",
+  "entry": "IGNORE", "entered": "IGNORE"
+};
+
+const VALID_RATES = [10, 12, 20, 25, 30, 50, 60, 100, 650];
+const VALID_DRAW_TIMES = [1, 3, 5, 6, 7, 8, 12];
+
+/* ---------------- Unicode normalization ---------------- */
+
+function normalizeUnicode(text) {
+  if (!text) return "";
+  try {
+    text = text.normalize("NFKC");
+  } catch (e) { /* ignore */ }
+
+  // Map common mathematical alphanumeric / fullwidth ranges to ASCII via NFKC first,
+  // then a manual fallback map for characters NFKC may not fully resolve.
+  const map = {
+    "₹": "rs", "、": ",", "，": ",", "。": ".",
+    "：": ":", "／": "/", "－": "-", "＋": "+",
+    "×": "x", "﹒": "."
+  };
+  let out = "";
+  for (const ch of text) {
+    out += map[ch] !== undefined ? map[ch] : ch;
+  }
+  return out;
+}
+
+/* ---------------- Tokenizer ---------------- */
+
+function tokenize(text) {
+  const tokens = [];
+  if (!text) return tokens;
+  // Order matters: decimal numbers, then plain numbers, words, separators, whitespace
+  const re = /(\d+\.\d+)|(\d+)|([a-zA-ZÀ-ɏ]+)|(\s+)|([^\sa-zA-Z0-9À-ɏ]+)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (m[1] !== undefined) tokens.push({ type: "decimal", raw: m[1] });
+    else if (m[2] !== undefined) tokens.push({ type: "num", raw: m[2] });
+    else if (m[3] !== undefined) tokens.push({ type: "word", raw: m[3] });
+    else if (m[4] !== undefined) tokens.push({ type: "ws", raw: m[4] });
+    else if (m[5] !== undefined) tokens.push({ type: "sep", raw: m[5] });
+  }
+  return tokens;
+}
+
+/* ---------------- Basic classification ---------------- */
+
+function classifyTokenBasic(tok) {
+  if (tok.type === "ws") return { ...tok, type: "ws" };
+  if (tok.type === "sep") return { ...tok, type: "SEPARATOR" };
+
+  const lower = tok.raw.toLowerCase();
+
+  if (tok.type === "word") {
+    if (KNOWN[lower]) return { ...tok, type: KNOWN[lower] };
+    // Lottery+number merged tokens handled later in context pass
+    return { ...tok, type: "OTHER" };
+  }
+
+  if (tok.type === "num" || tok.type === "decimal") {
+    return { ...tok, type: "BETTING_NUMBER" };
+  }
+
+  return { ...tok, type: "OTHER" };
+}
+
+/* ---------------- Context-aware classification ---------------- */
+
+function classifyWithContext(tokens) {
+  // First pass: split compound tokens (lottery+num, position+num, rs+num, num+rs)
+  let expanded = [];
+  for (const tok of tokens) {
+    expanded.push(...splitCompoundToken(tok));
+  }
+
+  // Basic classification
+  let classified = expanded.map(classifyTokenBasic);
+
+  // Second pass: context-aware reclassification
+  const nonWs = classified.filter(t => t.type !== "ws" && t.type !== "SEPARATOR");
+
+  for (let i = 0; i < classified.length; i++) {
+    const tok = classified[i];
+    if (tok.type !== "BETTING_NUMBER") continue;
+
+    const numVal = parseInt(tok.raw, 10);
+    if (isNaN(numVal)) continue;
+
+    const prevMeaningful = findNearby(classified, i, -1);
+    const nextMeaningful = findNearby(classified, i, 1);
+
+    // Rule 1: small number (1-9) near QTY keyword -> QTY
+    if (tok.raw.length === 1 && numVal >= 1 && numVal <= 9) {
+      if ((prevMeaningful && prevMeaningful.type === "QTY") ||
+          (nextMeaningful && nextMeaningful.type === "QTY") ||
+          (prevMeaningful && ["set", "sets", "each", "ech", "ea", "pes", "pcs", "st", "sat"].includes(prevMeaningful.raw.toLowerCase()))) {
+        tok.type = "QTY";
+        continue;
+      }
+    }
+
+    // Rule 2: Rs/₹ near number matching a valid rate -> RATE
+    if ((prevMeaningful && prevMeaningful.type === "RATE") ||
+        (nextMeaningful && nextMeaningful.type === "RATE")) {
+      if (VALID_RATES.includes(numVal)) {
+        tok.type = "RATE";
+        continue;
+      }
+    }
+
+    // Rule 3: pm/am near number matching draw times -> TIMESLOT
+    if ((prevMeaningful && prevMeaningful.type === "TIMESLOT") ||
+        (nextMeaningful && nextMeaningful.type === "TIMESLOT")) {
+      if (VALID_DRAW_TIMES.includes(numVal)) {
+        tok.type = "TIMESLOT";
+        continue;
+      }
+    }
+
+    // Rule 4: dash-N pattern -> number after dash after a betting number = QTY
+    if (i >= 2) {
+      const prevTok = classified[i - 1];
+      const prevPrevTok = classified[i - 2];
+      if (prevTok && prevTok.type === "SEPARATOR" && prevTok.raw.includes("-") &&
+          prevPrevTok && prevPrevTok.type === "BETTING_NUMBER") {
+        if (numVal <= 20) {
+          tok.type = "QTY";
+          continue;
+        }
+      }
+    }
+
+    // Rule 5: digit 3/4/5 immediately before "digital" -> BET_TYPE (already word-classified);
+    // number itself becomes part of context, mark as OTHER (digit-count marker)
+    if (nextMeaningful && nextMeaningful.type === "BET_TYPE" &&
+        ["digital", "degital", "degtel", "digit"].includes(nextMeaningful.raw.toLowerCase()) &&
+        [3, 4, 5].includes(numVal)) {
+      tok.type = "OTHER";
+      continue;
+    }
+  }
+
+  return classified;
+}
+
+// Split compound tokens: dr1, kl3, dear10, Bc95, Rs30, 30rs
+function splitCompoundToken(tok) {
+  if (tok.type !== "word" && tok.type !== "num") return [tok];
+  const raw = tok.raw;
+  const lower = raw.toLowerCase();
+
+  if (tok.type === "word") {
+    // Lottery+number merged: dr1, kl3, dear10, dear8pm, kl100
+    let m = lower.match(/^(dear|dr|deer|der|dl|kerala|kerela|kl|goa)(\d{1,3})(pm|am)?$/);
+    if (m) {
+      const lotteryRaw = raw.slice(0, m[1].length);
+      const numRaw = raw.slice(m[1].length, m[1].length + m[2].length);
+      const rest = raw.slice(m[1].length + m[2].length);
+      const parts = [{ type: "word", raw: lotteryRaw }];
+      const numVal = parseInt(m[2], 10);
+      if (m[3]) {
+        // has pm/am suffix -> timeslot compound e.g. dear8pm
+        parts.push({ type: "num", raw: numRaw });
+        parts.push({ type: "word", raw: rest });
+      } else if (VALID_DRAW_TIMES.includes(numVal) && numRaw.length <= 2) {
+        parts.push({ type: "num", raw: numRaw });
+      } else if (VALID_RATES.includes(numVal)) {
+        parts.push({ type: "word", raw: "rs" });
+        parts.push({ type: "num", raw: numRaw });
+      } else {
+        parts.push({ type: "num", raw: numRaw });
+      }
+      return parts;
+    }
+
+    // Position+number: Bc95, Ab43, A4, Ac35
+    m = lower.match(/^([abc]{1,3})(\d{1,4})$/);
+    if (m && (KNOWN[m[1]] === "POSITION" || m[1].length <= 3)) {
+      return [
+        { type: "word", raw: raw.slice(0, m[1].length) },
+        { type: "num", raw: raw.slice(m[1].length) }
+      ];
+    }
+
+    // Rs/rate word + number: Rs30, rs.100 (dot stripped upstream by normalizer typically)
+    m = lower.match(/^(rs|re|rupise)(\d+)$/);
+    if (m) {
+      return [
+        { type: "word", raw: raw.slice(0, m[1].length) },
+        { type: "num", raw: raw.slice(m[1].length) }
+      ];
+    }
+  }
+
+  if (tok.type === "num") {
+    // number+rs suffix baked into a word token normally, but guard anyway
+    return [tok];
+  }
+
+  return [tok];
+}
+
+function findNearby(classified, idx, dir) {
+  let i = idx + dir;
+  while (i >= 0 && i < classified.length) {
+    const t = classified[i];
+    if (t.type !== "ws") return t;
+    i += dir;
+  }
+  return null;
+}
+
+/* ---------------- Grouping ---------------- */
+
+function parseGroups(classified, meta) {
+  // Group tokens into bet "groups" — a group starts at a BETTING_NUMBER and
+  // accumulates trailing QTY/RATE modifiers, resetting on next BETTING_NUMBER,
+  // POSITION, or LOTTERY/TIMESLOT/RATE context change.
+  const groups = [];
+  let currentPosition = meta.bet_type || null;
+  let currentRate = null;
+
+  const meaningful = classified.filter(t => t.type !== "ws" && t.type !== "SEPARATOR");
+
+  let i = 0;
+  while (i < meaningful.length) {
+    const tok = meaningful[i];
+
+    if (tok.type === "POSITION") {
+      currentPosition = tok.raw.toUpperCase();
+      i++;
+      continue;
+    }
+
+    if (tok.type === "RATE") {
+      // look ahead for the numeric rate value
+      if (i + 1 < meaningful.length && meaningful[i + 1].type === "RATE" &&
+          /^\d+$/.test(meaningful[i + 1].raw)) {
+        currentRate = parseInt(meaningful[i + 1].raw, 10);
+        i += 2;
+        continue;
+      }
+      if (/^\d+$/.test(tok.raw)) {
+        currentRate = parseInt(tok.raw, 10);
+      }
+      i++;
+      continue;
+    }
+
+    if (tok.type === "BETTING_NUMBER") {
+      const group = {
+        number: tok.raw,
+        position: currentPosition,
+        rate: currentRate,
+        qty: 1
+      };
+
+      // Look ahead for an immediate QTY token
+      let j = i + 1;
+      if (j < meaningful.length && meaningful[j].type === "QTY" && /^\d+$/.test(meaningful[j].raw)) {
+        group.qty = parseInt(meaningful[j].raw, 10);
+        j++;
+      } else if (j < meaningful.length && meaningful[j].type === "QTY") {
+        // qty keyword without explicit trailing digit -> default handled elsewhere
+        j++;
+      }
+
+      groups.push(group);
+      i = j;
+      continue;
+    }
+
+    i++;
+  }
+
+  return groups;
+}
+
+/* ---------------- Entry derivation ---------------- */
+
+function deriveEntries(groups) {
+  const entries = [];
+  for (const g of groups) {
+    const category = deriveCategoryForGroup(g);
+    entries.push({
+      number: g.number,
+      position: g.position,
+      qty: g.qty || 1,
+      rate: g.rate,
+      category
+    });
+  }
+  return entries;
+}
+
+function deriveCategoryForGroup(g) {
+  const dlen = g.number.length;
+  const rate = g.rate;
+
+  if (dlen === 1) return "SINGLE";
+
+  if (dlen === 2) {
+    if (rate === 60) return "FULL";
+    if (rate === 30) return "HALF";
+    if (rate === 12) return "AB/BC/AC";
+    return "AB/BC/AC";
+  }
+
+  if (dlen === 3) {
+    if (rate === 10) return "3D10";
+    if (rate === 25) return "3D25";
+    return "3D10";
+  }
+
+  if (dlen === 4) {
+    if (rate === 20) return "4D20";
+    if (rate === 50) return "4D50";
+    if (rate === 100) return "4D100";
+    return "4D100";
+  }
+
+  if (dlen === 5) return "5D";
+
+  return null;
+}
+
+/* ---------------- Lottery / timeslot detection ---------------- */
+
+function detectLotteryFromGroup(groupName) {
+  if (!groupName) return null;
+  const gn = groupName.toLowerCase();
+  if (gn.includes("bala 494") || gn.includes("bala 678")) return "DEAR";
+  if (gn.includes("dear")) return "DEAR";
+  if (gn.includes("kerala")) return "KERALA";
+  if (gn.includes("goa")) return "GOA";
+  return null;
+}
+
+function detectLotteryFromText(text) {
+  if (!text) return null;
+  const t = text.toLowerCase();
+  if (/\b(dear|dr|deer|der|dl)\b/.test(t)) return "DEAR";
+  if (/\b(kerala|kerela|kl)\b/.test(t)) return "KERALA";
+  if (/\bgoa\b/.test(t)) return "GOA";
+  return null;
+}
+
+function detectTimeslot(text) {
+  if (!text) return null;
+  const t = text.toLowerCase();
+  const patterns = [
+    [/\b1\s*[.:]*\s*pm\b/, "1PM"], [/\bpm\s*1\b/, "1PM"], [/\bdr\s*1\b/, "1PM"], [/\bkl\s*1\b/, "1PM"],
+    [/\b3\s*[.:]*\s*pm\b/, "3PM"], [/\bpm\s*3\b/, "3PM"], [/\bdr\s*3\b/, "3PM"], [/\bkl\s*3\b/, "3PM"],
+    [/\b5\s*[.:]*\s*pm\b/, "5PM"], [/\bpm\s*5\b/, "5PM"],
+    [/\b6\s*[.:]*\s*pm\b/, "6PM"], [/\bpm\s*6\b/, "6PM"],
+    [/\b7\s*[.:]*\s*pm\b/, "7PM"], [/\bpm\s*7\b/, "7PM"],
+    [/\b8\s*[.:]*\s*pm\b/, "8PM"], [/\bpm\s*8\b/, "8PM"],
+    [/\b12\s*[.:]*\s*pm\b/, "12PM"], [/\bpm\s*12\b/, "12PM"]
+  ];
+  for (const [re, slot] of patterns) {
+    if (re.test(t)) return slot;
+  }
+  return null;
+}
+
+/* ---------------- Top-level message parse ---------------- */
+
+function parseMessage(msg) {
+  const rawText = msg.text || "";
+  const normalized = normalizeUnicode(rawText);
+
+  const lottery = detectLotteryFromGroup(msg.group_name) || detectLotteryFromText(normalized);
+  const timeslot = detectTimeslot(normalized);
+
+  const tokens = tokenize(normalized);
+  const classified = classifyWithContext(tokens);
+
+  const groups = parseGroups(classified, { bet_type: null });
+  const entries = deriveEntries(groups);
+
+  const categories = Array.from(new Set(entries.map(e => e.category).filter(Boolean)));
+  const rates = Array.from(new Set(entries.map(e => e.rate).filter(r => r != null)));
+
+  return {
+    lottery,
+    timeslot,
+    classified,
+    groups,
+    entries,
+    categories,
+    rates
+  };
+}
+</script>
 </body>
 </html>

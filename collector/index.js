@@ -3,6 +3,8 @@
 // Captures messages and POSTs to Cloudflare Worker
 // =====================================================
 
+process.setMaxListeners(20)
+
 const {
     default: makeWASocket,
     useMultiFileAuthState,
@@ -172,6 +174,47 @@ function normalizeTimestamp(ts) {
 // PROCESS MESSAGE
 // =====================================================
 
+// In-memory caches (loaded once, persisted periodically)
+let _config = null
+let _groupCache = null
+let _messageIndex = null
+let _messageIndexDirty = false
+
+function getConfig() {
+    if (!_config) _config = loadConfig()
+    return _config
+}
+
+function getGroupCache() {
+    if (!_groupCache) _groupCache = loadGroupCache()
+    return _groupCache
+}
+
+function getMessageIndex() {
+    if (!_messageIndex) _messageIndex = loadMessageIndex()
+    return _messageIndex
+}
+
+// Periodic flush of message index (every 10 seconds if dirty)
+setInterval(() => {
+    if (_messageIndexDirty && _messageIndex) {
+        saveMessageIndex(_messageIndex)
+        _messageIndexDirty = false
+    }
+}, 10000)
+
+// Periodic prune: keep only last 50K message IDs to cap memory
+function pruneMessageIndex() {
+    const idx = getMessageIndex()
+    const keys = Object.keys(idx)
+    if (keys.length > 50000) {
+        const toRemove = keys.slice(0, keys.length - 50000)
+        for (const k of toRemove) delete idx[k]
+        _messageIndexDirty = true
+        console.log(`Pruned message index: removed ${toRemove.length} old entries`)
+    }
+}
+
 async function processMessage(sock, msg, poster, historical = false) {
 
     try {
@@ -179,9 +222,9 @@ async function processMessage(sock, msg, poster, historical = false) {
         const remoteJid = msg.key?.remoteJid
         if (!remoteJid || !remoteJid.endsWith("@g.us")) return
 
-        const config = loadConfig()
-        const groupCache = loadGroupCache()
-        const messageIndex = loadMessageIndex()
+        const config = getConfig()
+        const groupCache = getGroupCache()
+        const messageIndex = getMessageIndex()
 
         const messageId = msg.key?.id
         if (messageIndex[messageId]) return
@@ -219,7 +262,7 @@ async function processMessage(sock, msg, poster, historical = false) {
         const text = extractMessageText(msg)
         const normalizedTimestamp = normalizeTimestamp(msg.messageTimestamp)
 
-        // Build record
+        // Build record (no raw msg — saves memory and disk)
         const record = {
             ingest_sequence: Date.now(),
             historical,
@@ -229,8 +272,7 @@ async function processMessage(sock, msg, poster, historical = false) {
             sender: msg.key?.participant || msg.key?.remoteJid || "",
             message_id: messageId,
             push_name: msg.pushName || "",
-            text,
-            raw: msg
+            text
         }
 
         // Save locally (backup)
@@ -251,17 +293,9 @@ async function processMessage(sock, msg, poster, historical = false) {
             })
         }
 
-        // Update dedup index
-        messageIndex[messageId] = true
-        saveMessageIndex(messageIndex)
-
-        // Update sync state
-        const syncState = loadSyncState()
-        syncState.last_live_message = Date.now()
-        syncState.last_message_id = messageId
-        syncState.last_whatsapp_timestamp = normalizedTimestamp
-        if (historical) syncState.last_history_sync = Date.now()
-        saveSyncState(syncState)
+        // Update dedup index (in-memory, flushed periodically)
+        messageIndex[messageId] = 1
+        _messageIndexDirty = true
 
         // Log
         const prefix = historical ? "[HISTORY]" : "[LIVE]"
@@ -281,7 +315,7 @@ async function start() {
 
     ensureDirectories()
 
-    const config = loadConfig()
+    const config = getConfig()
 
     // Initialize poster
     const poster = new MessagePoster(
@@ -289,112 +323,124 @@ async function start() {
         config.api_key
     )
 
-    // Heartbeat
+    // Heartbeat (single interval, never stacked)
     const heartbeatMs = config.heartbeat_interval || 300000
     setInterval(() => {
         poster.sendHeartbeat("online")
     }, heartbeatMs)
 
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
-    const { version } = await fetchLatestBaileysVersion()
-
-    console.log("\nUsing WA version:", version)
-
-    const sock = makeWASocket({
-        version,
-        auth: state,
-        logger: P({ level: "silent" }),
-        printQRInTerminal: false,
-        fireInitQueries: true,
-        downloadHistory: true,
-        syncFullHistory: true,
-        browser: ["Windows", "Desktop", "10.0"]
+    // Graceful shutdown (register ONCE, outside connect loop)
+    process.once("SIGINT", async () => {
+        console.log("\nShutting down...")
+        if (_messageIndex && _messageIndexDirty) saveMessageIndex(_messageIndex)
+        await poster.stop()
+        process.exit(0)
     })
 
-    // Save creds
-    sock.ev.on("creds.update", saveCreds)
+    process.once("SIGTERM", async () => {
+        console.log("\nStopping...")
+        if (_messageIndex && _messageIndexDirty) saveMessageIndex(_messageIndex)
+        await poster.stop()
+        process.exit(0)
+    })
 
-    // Connection events
-    sock.ev.on("connection.update", async (update) => {
+    // Connection loop — creates new socket without leaking the old one
+    async function connect() {
 
-        const { connection, lastDisconnect, qr } = update
+        const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
+        const { version } = await fetchLatestBaileysVersion()
 
-        if (qr) {
-            console.log("\n================================")
-            console.log("SCAN QR CODE")
-            console.log("================================\n")
-            qrcode.generate(qr, { small: true })
-            console.log("\nWhatsApp > Linked Devices\n")
-        }
+        console.log("\nUsing WA version:", version)
 
-        if (connection === "open") {
-            console.log("\n================================")
-            console.log("WHATSAPP CONNECTED")
-            console.log("================================\n")
-            console.log("History hydration started...")
-            console.log("Live ingestion active...\n")
-            poster.sendHeartbeat("online")
-        }
+        const sock = makeWASocket({
+            version,
+            auth: state,
+            logger: P({ level: "silent" }),
+            printQRInTerminal: false,
+            fireInitQueries: true,
+            downloadHistory: true,
+            syncFullHistory: false, // only on first connect; history already synced
+            browser: ["Windows", "Desktop", "10.0"]
+        })
 
-        if (connection === "close") {
+        sock.ev.on("creds.update", saveCreds)
 
-            const statusCode = lastDisconnect?.error?.output?.statusCode
+        sock.ev.on("connection.update", async (update) => {
 
-            console.log(`\nConnection closed: ${statusCode}`)
-            poster.sendHeartbeat("disconnected")
+            const { connection, lastDisconnect, qr } = update
 
-            if (statusCode === DisconnectReason.loggedOut) {
-                console.log("Logged out from WhatsApp")
-                await poster.stop()
-                process.exit(1)
+            if (qr) {
+                console.log("\n================================")
+                console.log("SCAN QR CODE")
+                console.log("================================\n")
+                qrcode.generate(qr, { small: true })
+                console.log("\nWhatsApp > Linked Devices\n")
             }
 
-            console.log("Reconnecting in 5 seconds...")
-            setTimeout(() => start(), 5000)
-        }
-    })
+            if (connection === "open") {
+                console.log("\n================================")
+                console.log("WHATSAPP CONNECTED")
+                console.log("================================\n")
+                console.log("History hydration started...")
+                console.log("Live ingestion active...\n")
+                poster.sendHeartbeat("online")
+                pruneMessageIndex()
+            }
 
-    // History sync
-    sock.ev.on("messaging-history.set", async ({ chats, contacts, messages, syncType }) => {
+            if (connection === "close") {
 
-        console.log("\n================================")
-        console.log("HISTORY SYNC RECEIVED")
-        console.log(`Chats: ${chats.length} | Messages: ${messages.length} | Type: ${syncType}`)
-        console.log("================================\n")
+                const statusCode = lastDisconnect?.error?.output?.statusCode
 
-        for (const msg of messages) {
-            await processMessage(sock, msg, poster, true)
-        }
+                console.log(`\nConnection closed: ${statusCode}`)
+                poster.sendHeartbeat("disconnected")
 
-        console.log("\nHistory sync completed.\n")
-    })
+                if (statusCode === DisconnectReason.loggedOut) {
+                    console.log("Logged out from WhatsApp")
+                    if (_messageIndex && _messageIndexDirty) saveMessageIndex(_messageIndex)
+                    await poster.stop()
+                    process.exit(1)
+                }
 
-    // Live messages
-    sock.ev.on("messages.upsert", async ({ messages }) => {
+                // Clean up old socket listeners before reconnecting
+                sock.ev.removeAllListeners()
 
-        for (const msg of messages) {
-            await processMessage(sock, msg, poster, false)
-        }
-    })
+                console.log("Reconnecting in 5 seconds...")
+                setTimeout(() => connect(), 5000)
+            }
+        })
 
-    // Group updates
-    sock.ev.on("groups.update", updates => {
-        console.log("\nGroup updates received")
-        console.log(updates)
-    })
+        // History sync
+        sock.ev.on("messaging-history.set", async ({ chats, contacts, messages, syncType }) => {
 
-    // Graceful shutdown
-    process.on("SIGINT", async () => {
-        console.log("\nShutting down...")
-        await poster.stop()
-        process.exit(0)
-    })
+            console.log("\n================================")
+            console.log("HISTORY SYNC RECEIVED")
+            console.log(`Chats: ${chats.length} | Messages: ${messages.length} | Type: ${syncType}`)
+            console.log("================================\n")
 
-    process.on("SIGTERM", async () => {
-        console.log("\nStopping...")
-        await poster.stop()
-        process.exit(0)
-    })
+            for (const msg of messages) {
+                await processMessage(sock, msg, poster, true)
+            }
+
+            console.log("\nHistory sync completed.\n")
+        })
+
+        // Live messages
+        sock.ev.on("messages.upsert", async ({ messages }) => {
+
+            for (const msg of messages) {
+                await processMessage(sock, msg, poster, false)
+            }
+        })
+
+        // Group updates
+        sock.ev.on("groups.update", updates => {
+            console.log("\nGroup updates received")
+            console.log(updates)
+        })
+    }
+
+    // Start first connection
+    connect()
 }
 
 // =====================================================
