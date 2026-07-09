@@ -1651,7 +1651,8 @@ function deriveCategoryForGroup(g) {
   if (dlen === 3) {
     if (rate === 10) return "3D10";
     if (rate === 25) return "3D25";
-    return "3D10";
+    if (rate === 30) return "3D_HALF";
+    return "3D_FULL";  // default 3-digit rate is Rs60
   }
 
   if (dlen === 4) {

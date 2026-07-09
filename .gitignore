@@ -29,3 +29,5 @@ data/raw/*.jsonl
 # Backups
 *.zip
 *.bak
+collector/ssh-key*
+worker/.wrangler/
