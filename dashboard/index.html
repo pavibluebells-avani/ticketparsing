@@ -18,7 +18,7 @@
   --muted: #767671;
   --card-bg: #ffffff;
   --border: rgba(0,0,0,0.1);
-  --accent: #3C3489;
+  --accent: #378ADD;
   --accent-2: #085041;
   --green: #1f8a4c;
   --red: #c0392b;
@@ -166,8 +166,8 @@ header .subtitle {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #EEEDFE;
-  color: #3C3489;
+  background: #E6F1FB;
+  color: #378ADD;
   padding: 4px 10px;
   border-radius: 14px;
   font-weight: 600;
@@ -341,12 +341,14 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
   white-space: nowrap;
 }
 
-.p-dear { background: #EEEDFE; color: #3C3489; }
+.p-dear { background: #E6F1FB; color: #0C447C; }
 .p-kerala { background: #E1F5EE; color: #085041; }
 .p-goa { background: #FAEEDA; color: #633806; }
 .p-rate { background: #E6F1FB; color: #0C447C; }
 .p-ts { background: #FFF5E6; color: #633806; }
 .p-cat { background: #F1F0EC; color: #4a4a45; }
+.p-ambig { background: #FDECEA; color: #C0392B; }
+.p-unk { background: #F1EFE8; color: #5f5e5a; }
 .p-none { color: var(--muted); font-size: 12px; }
 
 /* Pagination */
@@ -671,6 +673,7 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
             <th>Group</th>
             <th>Sender</th>
             <th>Lottery</th>
+            <th>Timeslot</th>
             <th>Category</th>
             <th>Rate</th>
             <th>Message</th>
@@ -1033,7 +1036,7 @@ function renderTable(filtered) {
   const tbody = document.getElementById("messages-body");
 
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">No messages found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">No messages found</td></tr>';
     return;
   }
 
@@ -1049,8 +1052,12 @@ function renderTable(filtered) {
     const group = escapeHtml(msg.group_name || msg.group_jid || "—");
 
     const lotteryPill = parsed.lottery ? lotteryPillHtml(parsed.lottery) : '<span class="p-none">—</span>';
+    const tsPill = parsed.timeslot ? `<span class="pill p-ts">${escapeHtml(parsed.timeslot)}</span>` : '<span class="p-none">—</span>';
     const catPill = parsed.categories && parsed.categories.length
-      ? parsed.categories.slice(0, 2).map(c => `<span class="pill p-cat">${escapeHtml(c)}</span>`).join(" ")
+      ? parsed.categories.slice(0, 2).map(c => {
+          const cls = c === 'AMBIGUOUS' ? 'p-ambig' : c === 'UNKNOWN' ? 'p-unk' : 'p-cat';
+          return `<span class="pill ${cls}">${escapeHtml(c)}</span>`;
+        }).join(" ")
       : '<span class="p-none">—</span>';
     const ratePill = parsed.rates && parsed.rates.length
       ? parsed.rates.slice(0, 2).map(r => `<span class="pill p-rate">₹${r}</span>`).join(" ")
@@ -1061,16 +1068,17 @@ function renderTable(filtered) {
       <td class="group-col" title="${group}">${group}</td>
       <td class="sender-col" title="${sender}">${sender}</td>
       <td>${lotteryPill}</td>
+      <td>${tsPill}</td>
       <td>${catPill}</td>
       <td>${ratePill}</td>
       <td class="msg-col" title="${text}">${text}</td>
-      <td style="color:#378ADD;font-size:11px;white-space:nowrap;cursor:pointer">View ›</td>
+      <td style="color:var(--accent);font-size:11px;white-space:nowrap;cursor:pointer">View ›</td>
     </tr>`;
   }).join("");
 }
 
 function lotteryPillHtml(lottery) {
-  const cls = lottery === "DEAR" ? "p-dear" : lottery === "KERALA" ? "p-kerala" : lottery === "GOA" ? "p-goa" : "p-cat";
+  const cls = lottery === "DEAR" ? "p-dear" : lottery === "KERALA" ? "p-kerala" : lottery === "GOA" ? "p-goa" : lottery === "AMBIGUOUS" ? "p-ambig" : lottery === "UNKNOWN" ? "p-unk" : "p-cat";
   return `<span class="pill ${cls}">${escapeHtml(lottery)}</span>`;
 }
 
@@ -1101,14 +1109,14 @@ function renderCharts(parsedMessages) {
     }
   }
 
-  renderPieChart("chart-lottery", lotteryCounts, "lottery", ["#3C3489", "#085041", "#633806", "#767671"]);
+  renderPieChart("chart-lottery", lotteryCounts, "lottery", ["#378ADD", "#1f8a4c", "#b5750a", "#767671"]);
   renderPieChart("chart-category", categoryCounts, "category", palette());
   renderPieChart("chart-timeslot", timeslotCounts, "timeslot", palette());
   renderDailyBar("chart-daily", dailyCounts);
 }
 
 function palette() {
-  return ["#3C3489", "#085041", "#633806", "#0C447C", "#c0392b", "#b5750a", "#1f8a4c", "#767671", "#8b5cf6", "#f97316"];
+  return ["#378ADD", "#1f8a4c", "#b5750a", "#0C447C", "#c0392b", "#085041", "#633806", "#767671", "#2980b9", "#f97316"];
 }
 
 function renderPieChart(canvasId, countsObj, filterKey, colors) {
@@ -1201,7 +1209,7 @@ function renderDailyBar(canvasId, countsObj) {
       datasets: [{
         label: "Messages",
         data: values,
-        backgroundColor: "#3C3489",
+        backgroundColor: "#378ADD",
         borderRadius: 4,
         maxBarThickness: 40
       }]
@@ -1237,8 +1245,9 @@ function openDetail(idx) {
       })
     : "—";
 
-  document.getElementById("detail-meta").textContent =
-    `${msg.group_name || msg.group_jid || "Unknown group"} · ${msg.push_name || msg.sender || "Unknown sender"} · ${time}`;
+  const msgIdShort = msg.message_id ? msg.message_id.slice(0, 20) + "…" : "—";
+  document.getElementById("detail-meta").innerHTML =
+    `${escapeHtml(msg.group_name || msg.group_jid || "Unknown group")} · ${escapeHtml(msg.push_name || msg.sender || "Unknown sender")} · ${time}<br><span style="font-size:11px;color:var(--muted)">ID: ${escapeHtml(msg.message_id || "—")}</span>`;
 
   document.getElementById("detail-raw").innerHTML = renderTokenHtml(parsed.classified);
   document.getElementById("detail-yaml").innerHTML = renderYamlHtml(msg, parsed);
