@@ -27,10 +27,16 @@ const TIMESLOT_PATTERNS = [
     [/\bpm\s*1\b/i, "1PM"],
     [/\b3\s*[.:]*\s*pm\b/i, "3PM"],
     [/\bpm\s*3\b/i, "3PM"],
+    [/\b5\s*[.:]*\s*pm\b/i, "5PM"],
+    [/\bpm\s*5\b/i, "5PM"],
     [/\b6\s*[.:]*\s*pm\b/i, "6PM"],
     [/\bpm\s*6\b/i, "6PM"],
     [/\b7\s*[.:]*\s*pm\b/i, "7PM"],
+    [/\bpm\s*7\b/i, "7PM"],
     [/\b8\s*[.:]*\s*pm\b/i, "8PM"],
+    [/\bpm\s*8\b/i, "8PM"],
+    [/\b12\s*[.:]*\s*pm\b/i, "12PM"],
+    [/\bpm\s*12\b/i, "12PM"],
     [/\b10\s*[.:]*\s*pm\b/i, "10PM"],
     [/\bpm\s*10\b/i, "10PM"],
 ]
@@ -57,6 +63,25 @@ const EACH_ALIASES = new Set(["each", "ecsh", "ech", "eash", "ea"])
 const BOX_ALIASES = new Set(["box", "bx"])
 
 const SINGLE_DIGIT_POSITIONS = { "a": "A", "b": "B", "c": "C" }
+
+// Groups to skip (statement/reporting) unless message has correction keywords
+const SKIP_GROUPS = new Set(["statement", "reporting software"])
+
+// Correction/dispute keywords — messages bypass skip-groups; unclassifiable ones → AMBIGUOUS
+const CORRECTION_KW_RE = /\b(cancel|cancl|cansel|missing|miss|delete|remove|wrong|mistake|correct|change|replace|avoid|ignore|skip|not\s+required|dont\s+take|don't\s+take|no\s+need|reduce|deduct|cut)\b/i
+
+// Timeslot → lottery inference (unique timeslot mappings)
+const TIMESLOT_LOTTERY_MAP = {
+    "3PM": "KERALA",
+    "5PM": "GOA",
+    "7PM": "GOA",
+    "1PM": "DEAR",
+    "6PM": "DEAR",
+    "8PM": "DEAR",
+}
+
+// Bet-type keyword line regex (standalone line like "Ab", "Bc", "Board")
+const BET_KW_LINE_RE = /^(?:ab|bc|ac|abc|all|board|bord|borad|bort|allbot|allbod|albert|abacbc|bcabac|full\s*board)\s*$/i
 
 const NOISE_WORD_SET = new Set([
     'board', 'chance', 'quantity', 'entered', 'wrongly',
@@ -925,13 +950,227 @@ function makeEntry(number, betType, qty, rate, ctx, rawLine, isBox) {
 }
 
 // ------------------------------------------------------
+// SECTION SPLITTING (ported from parse_bets_v2.py)
+// ------------------------------------------------------
+
+function extractRateFromLine(line) {
+    // Extract a valid rate from a single line
+    const patterns = [
+        /(?:rs|re|ra|ரூ|₹|௹)[=.,/\s\-\(\{\[]*(\d{2,3})(?=\b|[a-zA-Z])/gi,
+        /\b(\d{2,3})[./,\s]*(?:rs|re|ra|ரூ|₹|௹)/gi,
+        /(?:dear|dr|deer|der|dl|deat|kl|kerala|kerela|goa)[.\s]*(\d{2,3})(?=\b|[a-zA-Z.\d])/gi,
+    ]
+    for (const re of patterns) {
+        re.lastIndex = 0
+        let m
+        while ((m = re.exec(line)) !== null) {
+            const v = parseInt(m[1], 10)
+            if (VALID_RATES.has(v)) return v
+        }
+    }
+    return 0
+}
+
+function splitIntoSections(text) {
+    // Returns array of { text, rate, flag }
+    // flag: 'NUM_QTY_RATE' | null
+    const lines = text.split('\n')
+
+    // Check standalone "number,qty\nrate" pattern
+    const nonEmpty = lines.map(l => l.trim()).filter(Boolean)
+    if (nonEmpty.length === 2) {
+        const m = /^(\d{2,5})\s*,\s*(\d{1,2})$/.exec(nonEmpty[0])
+        if (m) {
+            const rateVal = parseInt(nonEmpty[1], 10)
+            if (VALID_RATES.has(rateVal)) {
+                return [{ text, rate: rateVal, flag: 'NUM_QTY_RATE' }]
+            }
+        }
+    }
+
+    // Phase 1: assign rate to each line
+    const lineRates = lines.map(l => extractRateFromLine(l))
+
+    // Phase 2: split on rate transitions, bet-type keyword lines, digit-length changes after gaps
+    const sections = []
+    let curRate = 0
+    let curStart = 0
+    let gapSeen = false
+
+    for (let i = 0; i < lines.length; i++) {
+        const stripped = lines[i].trim()
+
+        if (!stripped) {
+            gapSeen = true
+            continue
+        }
+
+        // Rate change → new section
+        if (lineRates[i] > 0 && lineRates[i] !== curRate) {
+            if (i > curStart) {
+                const secText = lines.slice(curStart, i).join('\n').trim()
+                if (secText && /\d{2,5}/.test(secText)) {
+                    sections.push({ text: secText, rate: curRate })
+                }
+            }
+            curRate = lineRates[i]
+            curStart = i
+            gapSeen = false
+            continue
+        }
+
+        // Bet-type keyword line after numeric content → new section
+        if (BET_KW_LINE_RE.test(stripped) && i > curStart) {
+            const beforeText = lines.slice(curStart, i).join('\n').trim()
+            if (beforeText && /\d{2,5}/.test(beforeText)) {
+                sections.push({ text: beforeText, rate: curRate })
+                curStart = i
+                curRate = 0
+                gapSeen = false
+                continue
+            }
+        }
+
+        // Digit-length transition after gap (no explicit rate change)
+        if (gapSeen && curRate === 0 && i > curStart) {
+            const beforeText = lines.slice(curStart, i).join('\n')
+            const beforeNums = beforeText.match(/\b\d{2,5}\b/g) || []
+            const afterNums = stripped.match(/\b\d{2,5}\b/g) || []
+
+            if (beforeNums.length && afterNums.length) {
+                const beforeLens = new Set(beforeNums.map(n => n.length))
+                const afterLens = new Set(afterNums.map(n => n.length))
+                let overlap = false
+                for (const l of beforeLens) { if (afterLens.has(l)) { overlap = true; break } }
+                if (!overlap) {
+                    const secText = lines.slice(curStart, i).join('\n').trim()
+                    if (secText && /\d{2,5}/.test(secText)) {
+                        sections.push({ text: secText, rate: curRate })
+                    }
+                    curStart = i
+                    curRate = 0
+                }
+            }
+        }
+
+        if (stripped) gapSeen = false
+    }
+
+    // Flush last section
+    const lastText = lines.slice(curStart).join('\n').trim()
+    if (lastText && /\d{2,5}/.test(lastText)) {
+        sections.push({ text: lastText, rate: curRate })
+    }
+
+    if (!sections.length) {
+        return [{ text, rate: 0, flag: null }]
+    }
+
+    // Phase 3: sub-split no-rate sections with mixed digit lengths
+    const final = []
+    for (const sec of sections) {
+        if (sec.rate === 0) {
+            const sub = subSplitByDigitLength(sec.text)
+            if (sub.length > 1) {
+                for (const s of sub) final.push({ text: s.text, rate: s.rate, flag: null })
+            } else {
+                final.push({ text: sec.text, rate: sec.rate, flag: null })
+            }
+        } else {
+            final.push({ text: sec.text, rate: sec.rate, flag: null })
+        }
+    }
+
+    return final.length ? final : [{ text, rate: 0, flag: null }]
+}
+
+function subSplitByDigitLength(text) {
+    const DEFAULT_RATES = { 2: 12, 3: 60, 4: 100, 5: 650 }
+    const lines = text.split('\n')
+    const groups = []
+    let curLines = []
+    let curDlen = 0
+
+    for (const line of lines) {
+        const stripped = line.trim()
+        const nums = (stripped.match(/\b\d{2,5}\b/g) || []).filter(n => !(n.startsWith('202') && n.length === 4))
+        if (!nums.length) {
+            curLines.push(line)
+            continue
+        }
+
+        // Mode of digit lengths on this line
+        const lens = nums.map(n => n.length)
+        const freq = {}
+        for (const l of lens) freq[l] = (freq[l] || 0) + 1
+        const lineDlen = parseInt(Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0], 10)
+
+        if (curDlen === 0) {
+            curDlen = lineDlen
+            curLines.push(line)
+        } else if (lineDlen === curDlen) {
+            curLines.push(line)
+        } else {
+            if (curLines.length) groups.push({ text: curLines.join('\n').trim(), dlen: curDlen })
+            curLines = [line]
+            curDlen = lineDlen
+        }
+    }
+    if (curLines.length) groups.push({ text: curLines.join('\n').trim(), dlen: curDlen })
+
+    const result = []
+    for (const g of groups) {
+        if (/\d{2,5}/.test(g.text)) {
+            result.push({ text: g.text, rate: DEFAULT_RATES[g.dlen] || 0 })
+        }
+    }
+    return result.length ? result : [{ text, rate: 0 }]
+}
+
+// ------------------------------------------------------
+// SKIP GROUP CHECK
+// ------------------------------------------------------
+
+function shouldSkipGroup(groupName) {
+    if (!groupName) return false
+    const gl = groupName.toLowerCase()
+    for (const sg of SKIP_GROUPS) {
+        if (gl.includes(sg)) return true
+    }
+    return false
+}
+
+// ------------------------------------------------------
+// TIMESLOT → LOTTERY INFERENCE
+// ------------------------------------------------------
+
+function inferLotteryFromTimeslot(timeslot) {
+    return TIMESLOT_LOTTERY_MAP[timeslot] || null
+}
+
+// ------------------------------------------------------
 // MESSAGE PARSER
 // ------------------------------------------------------
 
+// Cross-message context: tracks last lottery/timeslot per group
+// In Worker context, this is reset per request batch (stateless per isolate invocation)
+// For persistent context, store in D1 and pass in
+const recentByGroup = new Map()
+
 function parseMessage(text, groupName, groupJid, messageId, timestamp, sender, pushName) {
-    const result = { lottery: null, timeslot: null, entries: [], isNoise: false }
+    const result = { lottery: null, timeslot: null, entries: [], sections: [], isNoise: false, isAmbiguous: false, isCorrection: false }
 
     if (!text || isNoise(text)) {
+        result.isNoise = true
+        return result
+    }
+
+    // Check for correction keywords
+    const isCorrection = CORRECTION_KW_RE.test(text)
+    result.isCorrection = isCorrection
+
+    // Skip excluded groups unless message has correction keywords
+    if (!isCorrection && shouldSkipGroup(groupName)) {
         result.isNoise = true
         return result
     }
@@ -949,42 +1188,117 @@ function parseMessage(text, groupName, groupJid, messageId, timestamp, sender, p
         ctx.lottery = detectLotteryFromText(text)
     }
 
-    const lines = text.split('\n')
+    // Detect timeslot from text
+    ctx.timeslot = detectTimeslot(text)
 
-    // Pre-scan: if rate appears only on the last non-empty line (with no other numbers), pre-set it
-    const nonEmptyLines = lines.map(l => l.trim()).filter(Boolean)
-    if (nonEmptyLines.length) {
-        const lastLine = nonEmptyLines[nonEmptyLines.length - 1]
-        const lastRate = extractRate(lastLine)
-        if (lastRate) {
-            const lastCleaned = lastLine.replace(/(?:rs|re)[.,\s]*\d+/gi, '').trim()
-            const lastNums = lastCleaned.match(/\b\d{2,5}\b/g) || []
-            if (lastNums.length === 0) {
-                ctx.rate = lastRate
-            }
-        }
+    // Timeslot → lottery inference (if still no lottery)
+    if (!ctx.lottery && ctx.timeslot) {
+        ctx.lottery = inferLotteryFromTimeslot(ctx.timeslot)
     }
 
+    // Cross-message context: inherit lottery from previous message in same group
+    if (!ctx.lottery && groupJid && recentByGroup.has(groupJid)) {
+        ctx.lottery = recentByGroup.get(groupJid)
+    }
+
+    // Update recent lottery for this group (only from text-detected lottery)
+    const textLottery = detectLotteryFromText(text)
+    if (textLottery && groupJid) {
+        recentByGroup.set(groupJid, textLottery)
+    }
+
+    // 12PM ambiguity: text says "12pm" but no explicit lottery → ambiguous
+    const is12pmAmbiguous = (ctx.timeslot === '12PM' && !detectLotteryFromText(text))
+
+    // Split message into sections
+    const sections = splitIntoSections(text)
+
     const allEntries = []
-    for (const rawLine of lines) {
-        const line = rawLine.trim()
-        if (!line) continue
-        const entries = parseLine(line, ctx)
-        allEntries.push(...entries)
+    const sectionResults = []
+
+    for (const sec of sections) {
+        // Create a per-section context (inherits lottery/timeslot from message, but rate from section)
+        const secCtx = {
+            lottery: ctx.lottery,
+            timeslot: ctx.timeslot,
+            rate: sec.rate || null,
+            bet_type: null,
+            date_str: null,
+        }
+
+        // Pre-scan section: if rate appears only on last line, pre-set it
+        const secLines = sec.text.split('\n')
+        const secNonEmpty = secLines.map(l => l.trim()).filter(Boolean)
+        if (!secCtx.rate && secNonEmpty.length) {
+            const lastLine = secNonEmpty[secNonEmpty.length - 1]
+            const lastRate = extractRate(lastLine)
+            if (lastRate) {
+                const lastCleaned = lastLine.replace(/(?:rs|re)[.,\s]*\d+/gi, '').trim()
+                const lastNums = lastCleaned.match(/\b\d{2,5}\b/g) || []
+                if (lastNums.length === 0) {
+                    secCtx.rate = lastRate
+                }
+            }
+        }
+
+        const sectionEntries = []
+        for (const rawLine of secLines) {
+            const line = rawLine.trim()
+            if (!line) continue
+            const entries = parseLine(line, secCtx)
+            sectionEntries.push(...entries)
+        }
+
+        // Mark 12PM ambiguous sections
+        let sectionAmbiguous = is12pmAmbiguous
+        // Correction messages with no entries or unknown category → AMBIGUOUS
+        if (isCorrection && sectionEntries.length === 0) {
+            sectionAmbiguous = true
+        }
+
+        const mappedEntries = sectionEntries.map(e => ({
+            number: e.number,
+            betType: e.betType,
+            qty: e.qty,
+            rate: e.rate,
+            category: sectionAmbiguous ? 'AMBIGUOUS' : e.category,
+            rawLine: e.rawLine,
+            isBox: e.isBox,
+        }))
+
+        // Correction messages: reclassify unknown categories as AMBIGUOUS
+        if (isCorrection) {
+            for (const entry of mappedEntries) {
+                if (['UNKNOWN', '3D_FULL', '3D_HALF'].includes(entry.category) && !entry.rate) {
+                    entry.category = 'AMBIGUOUS'
+                    sectionAmbiguous = true
+                }
+            }
+        }
+
+        allEntries.push(...mappedEntries)
+        sectionResults.push({
+            text: sec.text,
+            rate: sec.rate,
+            flag: sec.flag || null,
+            entries: mappedEntries,
+            isAmbiguous: sectionAmbiguous,
+        })
+
+        if (sectionAmbiguous) result.isAmbiguous = true
     }
 
     result.lottery = ctx.lottery
     result.timeslot = ctx.timeslot
-    result.entries = allEntries.map(e => ({
-        number: e.number,
-        betType: e.betType,
-        qty: e.qty,
-        rate: e.rate,
-        category: e.category,
-        rawLine: e.rawLine,
-    }))
+    result.entries = allEntries
+    result.sections = sectionResults
 
     return result
+}
+
+// Reset cross-message context (call between batches or request boundaries)
+function resetGroupContext() {
+    recentByGroup.clear()
 }
 
 // ------------------------------------------------------
@@ -998,8 +1312,14 @@ export {
     detectLotteryFromText,
     detectTimeslot,
     extractRate,
+    extractRateFromLine,
     detectBetType,
     deriveCategory,
     getDefaultRate,
     parseMessage,
+    resetGroupContext,
+    splitIntoSections,
+    shouldSkipGroup,
+    inferLotteryFromTimeslot,
+    CORRECTION_KW_RE,
 }
