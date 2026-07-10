@@ -861,7 +861,10 @@ table th.col-hidden, table td.col-hidden { display: none; }
   <!-- Booking Report -->
   <div class="table-section" id="booking-report-section">
     <div class="table-section-header">
-      <h3>Booking Report</h3>
+      <h3 style="display:flex;align-items:center;gap:8px">
+        <span class="section-toggle" onclick="toggleBookingSection()" title="Collapse/Expand" style="cursor:pointer;font-size:16px;width:20px;text-align:center" id="booking-section-arrow">−</span>
+        Booking Report
+      </h3>
       <div style="display:flex;gap:8px;align-items:center">
         <input type="date" id="report-date-picker" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;font-family:inherit">
         <select id="report-lottery-filter" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px">
@@ -871,10 +874,12 @@ table th.col-hidden, table td.col-hidden { display: none; }
           <option value="GOA">GOA</option>
         </select>
         <button onclick="showReport()" style="background:#555;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:13px;cursor:pointer">Show</button>
-        <button onclick="calculateReport()" style="background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:13px;cursor:pointer">Generate</button>
+        <button onclick="clearReport()" title="Clear report" style="background:#c0392b;color:#fff;border:none;padding:6px 10px;border-radius:6px;font-size:15px;cursor:pointer;line-height:1">✕</button>
       </div>
     </div>
-    <div id="booking-report-container"></div>
+    <div id="booking-report-body">
+      <div id="booking-report-container"></div>
+    </div>
   </div>
 
   <!-- Message Counts -->
@@ -1766,10 +1771,31 @@ function initReportDatePicker() {
   reportAvailableDates = new Set(Array.from(sel.options).map(o => o.value).filter(Boolean));
 }
 
-// "Show" — fetch and display data (no calculations)
+function toggleBookingSection() {
+  const body = document.getElementById("booking-report-body");
+  const arrow = document.getElementById("booking-section-arrow");
+  if (body.style.display === "none") {
+    body.style.display = "";
+    arrow.textContent = "−";
+  } else {
+    body.style.display = "none";
+    arrow.textContent = "+";
+  }
+}
+
+function clearReport() {
+  document.getElementById("booking-report-container").innerHTML = "";
+  document.getElementById("msg-counts-section").style.display = "none";
+}
+
+// "Show" — fetch and display data with live-calc inputs
 async function showReport() {
   const container = document.getElementById("booking-report-container");
   container.innerHTML = '<div class="empty" style="padding:20px">Loading report…</div>';
+
+  // Ensure section is expanded
+  document.getElementById("booking-report-body").style.display = "";
+  document.getElementById("booking-section-arrow").textContent = "−";
 
   const reportLottery = document.getElementById("report-lottery-filter").value || null;
   const picker = document.getElementById("report-date-picker");
@@ -1816,17 +1842,21 @@ async function showReport() {
   }
 
   container.innerHTML = html;
-  loadMessageCounts();
-}
 
-// "Generate" — recalculate all balances from opening balance & prize inputs
-function calculateReport() {
-  const cards = document.querySelectorAll(".report-card");
-  if (cards.length === 0) { showReport(); return; }
-  cards.forEach(card => {
-    const cardId = card.id;
-    recalcAllBalances(cardId);
+  // Restore saved opening balance & prize data
+  container.querySelectorAll(".report-card").forEach(card => {
+    const saved = loadSavedReportData(card.id);
+    if (!saved) return;
+    const openInput = card.querySelector(".opening-balance-row input");
+    if (openInput && saved.openBal) openInput.value = saved.openBal;
+    const rows = card.querySelectorAll("tbody tr");
+    (saved.prizes || []).forEach((p, i) => {
+      if (rows[i] && p) rows[i].querySelector(".prize-input").value = p;
+    });
+    recalcAllBalances(card.id);
   });
+
+  loadMessageCounts();
 }
 
 function inferLotteryFromTimeslot(ts) {
@@ -1856,7 +1886,6 @@ function buildReportCard(data, lottery, timeslot, groupJid, date) {
     return { ...cat, booking, total, idx: ci };
   });
 
-  // Only rows with booking > 0
   const visibleRows = catData.filter(c => c.booking > 0);
   const grandBooking = visibleRows.reduce((s, c) => s + c.booking, 0);
   const grandTotal = visibleRows.reduce((s, c) => s + c.total, 0);
@@ -1867,7 +1896,7 @@ function buildReportCard(data, lottery, timeslot, groupJid, date) {
       <td>${c.booking}</td>
       <td>${c.rate}</td>
       <td>${c.total}</td>
-      <td><input class="prize-input" type="number" value="" placeholder="0"></td>
+      <td><input class="prize-input" type="number" value="" placeholder="0" oninput="recalcAllBalances('${cardId}')"></td>
       <td class="bal-cell">${c.total}</td>
     </tr>`
   ).join("");
@@ -1882,13 +1911,14 @@ function buildReportCard(data, lottery, timeslot, groupJid, date) {
       </div>
       <div class="rh-right">
         <span>${escapeHtml(groupName)}</span>
+        <button class="report-export-btn no-export" onclick="event.stopPropagation();saveReportCard('${cardId}')" style="background:rgba(0,0,0,0.15)">Save/Update</button>
         <button class="report-export-btn no-export" onclick="event.stopPropagation();exportReportCard('${cardId}')">Export JPG</button>
       </div>
     </div>
     <div class="report-body">
       <div class="opening-balance-row">
         <label>Opening Balance:</label>
-        <input type="number" value="" placeholder="0">
+        <input type="number" value="" placeholder="0" oninput="recalcAllBalances('${cardId}')">
       </div>
       <table class="report-table">
         <thead><tr>
@@ -1929,6 +1959,34 @@ function recalcAllBalances(cardId) {
   });
 
   card.querySelector(".grand-bal").textContent = balanceSum + openBal;
+}
+
+function saveReportCard(cardId) {
+  // Save opening balance + prize values to localStorage for persistence
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  const openBal = card.querySelector(".opening-balance-row input")?.value || "";
+  const prizes = [];
+  card.querySelectorAll("tbody tr").forEach(row => {
+    prizes.push(row.querySelector(".prize-input")?.value || "");
+  });
+  const key = `report_${cardId}`;
+  localStorage.setItem(key, JSON.stringify({ openBal, prizes }));
+
+  // Visual feedback
+  const btn = card.querySelector(".report-export-btn");
+  if (btn) {
+    const orig = btn.textContent;
+    btn.textContent = "Saved ✓";
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  }
+}
+
+function loadSavedReportData(cardId) {
+  const key = `report_${cardId}`;
+  try {
+    return JSON.parse(localStorage.getItem(key));
+  } catch { return null; }
 }
 
 async function exportReportCard(cardId) {
