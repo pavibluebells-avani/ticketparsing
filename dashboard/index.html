@@ -603,25 +603,25 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
   font-size: 13px;
 }
 .report-table th {
-  padding: 8px 12px;
+  padding: 8px 6px;
   text-align: right;
   font-weight: 700;
   font-size: 12px;
   text-transform: uppercase;
 }
-.report-table th:first-child { text-align: left; }
+.report-table th:first-child { text-align: left; padding-left: 12px; }
 .report-table td {
-  padding: 7px 12px;
+  padding: 7px 6px;
   text-align: right;
   border-top: 1px solid rgba(0,0,0,0.06);
 }
-.report-table td:first-child { text-align: left; font-weight: 600; }
+.report-table td:first-child { text-align: left; font-weight: 600; padding-left: 12px; }
 .report-table tfoot td {
   font-weight: 700;
   border-top: 2px solid rgba(0,0,0,0.15);
 }
-.report-table input.price-input {
-  width: 80px;
+.report-table input.prize-input {
+  width: 70px;
   text-align: right;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -630,7 +630,8 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
   font-family: inherit;
   background: #fff;
 }
-.report-table input.price-input:focus { border-color: var(--accent); outline: none; }
+.report-table input.prize-input:focus { border-color: var(--accent); outline: none; }
+.no-export { /* hidden during JPG export */ }
 
 /* Lottery color themes for report */
 .report-theme-dear .report-header { background: #E6F1FB; color: #0C447C; }
@@ -862,14 +863,15 @@ table th.col-hidden, table td.col-hidden { display: none; }
     <div class="table-section-header">
       <h3>Booking Report</h3>
       <div style="display:flex;gap:8px;align-items:center">
-        <input type="date" id="report-date-picker" onchange="generateReport()" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;font-family:inherit">
-        <select id="report-lottery-filter" onchange="generateReport()" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px">
+        <input type="date" id="report-date-picker" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;font-family:inherit">
+        <select id="report-lottery-filter" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px">
           <option value="">All Lotteries</option>
           <option value="DEAR">DEAR</option>
           <option value="KERALA">KERALA</option>
           <option value="GOA">GOA</option>
         </select>
-        <button onclick="generateReport()" style="background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:13px;cursor:pointer">Generate</button>
+        <button onclick="showReport()" style="background:#555;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:13px;cursor:pointer">Show</button>
+        <button onclick="calculateReport()" style="background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:13px;cursor:pointer">Generate</button>
       </div>
     </div>
     <div id="booking-report-container"></div>
@@ -1759,23 +1761,19 @@ let reportAvailableDates = new Set();
 
 function initReportDatePicker() {
   const picker = document.getElementById("report-date-picker");
-  // Default to today
   picker.value = new Date().toISOString().slice(0, 10);
-  // Collect available dates from the main date filter dropdown
   const sel = document.getElementById("f-date");
   reportAvailableDates = new Set(Array.from(sel.options).map(o => o.value).filter(Boolean));
 }
 
-async function generateReport() {
+// "Show" — fetch and display data (no calculations)
+async function showReport() {
   const container = document.getElementById("booking-report-container");
   container.innerHTML = '<div class="empty" style="padding:20px">Loading report…</div>';
 
   const reportLottery = document.getElementById("report-lottery-filter").value || null;
-
   const picker = document.getElementById("report-date-picker");
   const date = picker.value || new Date().toISOString().slice(0, 10);
-
-  // Use main filter for group if set
   const group = filters.group || null;
 
   let groups = [];
@@ -1791,7 +1789,6 @@ async function generateReport() {
     return;
   }
 
-  // Determine timeslots based on lottery filter
   let timeslots;
   if (reportLottery && LOTTERY_TIMESLOTS[reportLottery]) {
     timeslots = LOTTERY_TIMESLOTS[reportLottery];
@@ -1814,12 +1811,22 @@ async function generateReport() {
   }
 
   if (!html) {
-    container.innerHTML = '<div class="empty" style="padding:20px">No booking data for today.</div>';
+    container.innerHTML = '<div class="empty" style="padding:20px">No booking data for selected date.</div>';
     return;
   }
 
   container.innerHTML = html;
   loadMessageCounts();
+}
+
+// "Generate" — recalculate all balances from opening balance & prize inputs
+function calculateReport() {
+  const cards = document.querySelectorAll(".report-card");
+  if (cards.length === 0) { showReport(); return; }
+  cards.forEach(card => {
+    const cardId = card.id;
+    recalcAllBalances(cardId);
+  });
 }
 
 function inferLotteryFromTimeslot(ts) {
@@ -1833,7 +1840,6 @@ function buildReportCard(data, lottery, timeslot, groupJid, date) {
   const dateStr = date || new Date().toISOString().slice(0, 10);
   const cardId = `rpt-${groupJid}-${timeslot}`.replace(/[^a-zA-Z0-9-]/g, "_");
 
-  // Map server rows to report categories
   const serverRows = data.rows || [];
   const catData = REPORT_ROWS.map((cat, ci) => {
     let booking = 0, total = 0;
@@ -1850,20 +1856,23 @@ function buildReportCard(data, lottery, timeslot, groupJid, date) {
     return { ...cat, booking, total, idx: ci };
   });
 
-  const grandBooking = catData.reduce((s, c) => s + c.booking, 0);
-  const grandTotal = catData.reduce((s, c) => s + c.total, 0);
+  // Only rows with booking > 0
+  const visibleRows = catData.filter(c => c.booking > 0);
+  const grandBooking = visibleRows.reduce((s, c) => s + c.booking, 0);
+  const grandTotal = visibleRows.reduce((s, c) => s + c.total, 0);
 
-  // Only show rows with booking > 0
-  let rows = catData.filter(c => c.booking > 0).map(c =>
-    `<tr>
+  let rows = visibleRows.map(c =>
+    `<tr data-total="${c.total}">
       <td>${c.label}</td>
       <td>${c.booking}</td>
       <td>${c.rate}</td>
       <td>${c.total}</td>
+      <td><input class="prize-input" type="number" value="" placeholder="0"></td>
+      <td class="bal-cell">${c.total}</td>
     </tr>`
   ).join("");
 
-  return `<div class="report-card ${theme}" id="${cardId}">
+  return `<div class="report-card ${theme}" id="${cardId}" data-grand-total="${grandTotal}">
     <div class="report-header" onclick="toggleReportCard('${cardId}')">
       <div class="rh-left">
         <span class="collapse-arrow">▼</span>
@@ -1873,18 +1882,17 @@ function buildReportCard(data, lottery, timeslot, groupJid, date) {
       </div>
       <div class="rh-right">
         <span>${escapeHtml(groupName)}</span>
-        <button class="report-export-btn" onclick="event.stopPropagation();exportReportCard('${cardId}')">Export JPG</button>
+        <button class="report-export-btn no-export" onclick="event.stopPropagation();exportReportCard('${cardId}')">Export JPG</button>
       </div>
     </div>
     <div class="report-body">
       <div class="opening-balance-row">
         <label>Opening Balance:</label>
-        <input type="number" value="" placeholder="0" oninput="recalcCardBalance('${cardId}', ${grandTotal})">
-        <span style="margin-left:auto;font-size:14px">Net Balance: <strong id="${cardId}-net-bal">${grandTotal}</strong></span>
+        <input type="number" value="" placeholder="0">
       </div>
       <table class="report-table">
         <thead><tr>
-          <th></th><th>Booking</th><th>Rate</th><th>Total</th>
+          <th></th><th>Booking</th><th>Rate</th><th>Total</th><th>Prize</th><th>Balance</th>
         </tr></thead>
         <tbody>${rows}</tbody>
         <tfoot><tr>
@@ -1892,6 +1900,8 @@ function buildReportCard(data, lottery, timeslot, groupJid, date) {
           <td>${grandBooking}</td>
           <td></td>
           <td>${grandTotal}</td>
+          <td></td>
+          <td class="grand-bal">${grandTotal}</td>
         </tr></tfoot>
       </table>
     </div>
@@ -1902,18 +1912,30 @@ function toggleReportCard(cardId) {
   document.getElementById(cardId)?.classList.toggle("collapsed");
 }
 
-function recalcCardBalance(cardId, grandTotal) {
+// Recalculate all balances for a card: Balance = Total - Prize, Grand = sum(Balance) + Opening
+function recalcAllBalances(cardId) {
   const card = document.getElementById(cardId);
   if (!card) return;
   const openBal = parseFloat(card.querySelector(".opening-balance-row input")?.value) || 0;
-  document.getElementById(`${cardId}-net-bal`).textContent = openBal - grandTotal;
+  let balanceSum = 0;
+
+  card.querySelectorAll("tbody tr").forEach(row => {
+    const total = parseFloat(row.getAttribute("data-total")) || 0;
+    const prizeInput = row.querySelector(".prize-input");
+    const prize = parseFloat(prizeInput?.value) || 0;
+    const balance = total - prize;
+    row.querySelector(".bal-cell").textContent = balance;
+    balanceSum += balance;
+  });
+
+  card.querySelector(".grand-bal").textContent = balanceSum + openBal;
 }
 
 async function exportReportCard(cardId) {
   const card = document.getElementById(cardId);
   if (!card) return;
 
-  // Ensure html2canvas is loaded
+  // Load html2canvas
   if (!window.html2canvas) {
     const s = document.createElement("script");
     s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
@@ -1921,9 +1943,36 @@ async function exportReportCard(cardId) {
     await new Promise((res, rej) => { s.onload = res; s.onerror = rej; });
   }
 
-  // Expand card if collapsed
+  // Expand if collapsed
   const wasCollapsed = card.classList.contains("collapsed");
   if (wasCollapsed) card.classList.remove("collapsed");
+
+  // Hide export buttons and prize inputs for screenshot
+  const noExports = card.querySelectorAll(".no-export");
+  const prizeInputs = card.querySelectorAll(".prize-input");
+  const openInput = card.querySelector(".opening-balance-row input");
+  noExports.forEach(el => el.style.display = "none");
+
+  // Replace prize inputs with static text for clean screenshot
+  prizeInputs.forEach(inp => {
+    const val = inp.value || "0";
+    const span = document.createElement("span");
+    span.textContent = val;
+    span.className = "_prize-static";
+    inp.style.display = "none";
+    inp.parentNode.appendChild(span);
+  });
+  // Replace opening balance input
+  let openSpan = null;
+  if (openInput) {
+    const val = openInput.value || "0";
+    openSpan = document.createElement("span");
+    openSpan.textContent = val;
+    openSpan.className = "_open-static";
+    openSpan.style.fontWeight = "700";
+    openInput.style.display = "none";
+    openInput.parentNode.appendChild(openSpan);
+  }
 
   try {
     const canvas = await html2canvas(card, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
@@ -1935,6 +1984,12 @@ async function exportReportCard(cardId) {
     alert("Export failed: " + err.message);
   }
 
+  // Restore
+  noExports.forEach(el => el.style.display = "");
+  prizeInputs.forEach(inp => { inp.style.display = ""; });
+  card.querySelectorAll("._prize-static").forEach(s => s.remove());
+  if (openInput) openInput.style.display = "";
+  if (openSpan) openSpan.remove();
   if (wasCollapsed) card.classList.add("collapsed");
 }
 
