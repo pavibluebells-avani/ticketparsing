@@ -127,8 +127,8 @@ header .subtitle {
 }
 
 #search-input {
-  min-width: 220px;
-  flex: 1 1 220px;
+  width: 100%;
+  flex: 1 1 100%;
 }
 
 .filters-row button {
@@ -524,6 +524,169 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
 .yaml-section { color: #f9e2af; font-weight: 600; }
 .yaml-annotation { color: #cba6f7; font-style: italic; }
 
+/* ---------------- Admin section ---------------- */
+
+#admin-group-table select {
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-family: inherit;
+  background: #faf9f6;
+}
+#admin-group-table .admin-btn {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.admin-btn-save { background: var(--accent); color: #fff; }
+.admin-btn-apply { background: #1f8a4c; color: #fff; margin-left: 4px; }
+.admin-btn-clear { background: #c0392b; color: #fff; margin-left: 4px; }
+.admin-mapped { font-weight: 600; }
+.admin-mapped-dear { color: #0C447C; }
+.admin-mapped-kerala { color: #e91e8c; }
+.admin-mapped-goa { color: #1f8a4c; }
+.admin-mapped-auto { color: var(--muted); font-style: italic; }
+
+/* ---------------- Booking Report ---------------- */
+
+.report-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+.report-header {
+  padding: 10px 16px;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.report-header .rh-left { display: flex; gap: 20px; align-items: center; }
+.report-header .rh-right { font-size: 13px; }
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.report-table th {
+  padding: 8px 12px;
+  text-align: right;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+.report-table th:first-child { text-align: left; }
+.report-table td {
+  padding: 7px 12px;
+  text-align: right;
+  border-top: 1px solid rgba(0,0,0,0.06);
+}
+.report-table td:first-child { text-align: left; font-weight: 600; }
+.report-table tfoot td {
+  font-weight: 700;
+  border-top: 2px solid rgba(0,0,0,0.15);
+}
+.report-table input.price-input {
+  width: 80px;
+  text-align: right;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+}
+.report-table input.price-input:focus { border-color: var(--accent); outline: none; }
+
+/* Lottery color themes for report */
+.report-theme-dear .report-header { background: #E6F1FB; color: #0C447C; }
+.report-theme-dear .report-table th { background: #0C447C; color: #fff; }
+.report-theme-dear .report-table tr:nth-child(even) { background: #f0f7fd; }
+
+.report-theme-kerala .report-header { background: #f8c8dc; color: #7b1e3a; }
+.report-theme-kerala .report-table th { background: #e91e8c; color: #fff; }
+.report-theme-kerala .report-table tr:nth-child(even) { background: #fce4f0; }
+.report-theme-kerala .report-table tr:nth-child(odd) { background: #fdf0f6; }
+
+.report-theme-goa .report-header { background: #e0f5e9; color: #1a5c2e; }
+.report-theme-goa .report-table th { background: #1f8a4c; color: #fff; }
+.report-theme-goa .report-table tr:nth-child(even) { background: #edf8f1; }
+
+.report-theme-default .report-header { background: #f1f1ee; color: #333; }
+.report-theme-default .report-table th { background: #555; color: #fff; }
+.report-theme-default .report-table tr:nth-child(even) { background: #f7f7f5; }
+
+/* ---------------- Column visibility context menu ---------------- */
+
+.col-ctx-menu {
+  position: fixed;
+  z-index: 9999;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  padding: 6px 0;
+  min-width: 160px;
+  display: none;
+}
+.col-ctx-menu.show { display: block; }
+.col-ctx-menu label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  user-select: none;
+}
+.col-ctx-menu label:hover { background: var(--hover); }
+.col-ctx-menu input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+}
+table th.col-hidden, table td.col-hidden { display: none; }
+
+/* ---------------- Search autocomplete ---------------- */
+
+.search-wrap { position: relative; flex: 1 1 100%; }
+.search-wrap input { width: 100%; box-sizing: border-box; }
+.search-ac {
+  position: absolute;
+  left: 0; right: 0; top: 100%;
+  z-index: 9998;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  display: none;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.search-ac.show { display: block; }
+.search-ac-item {
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.search-ac-item:hover, .search-ac-item.active { background: var(--hover); }
+.search-ac-item .ac-prefix {
+  font-weight: 600;
+  color: var(--accent);
+  font-family: monospace;
+}
+.search-ac-item .ac-desc { color: var(--muted); }
+
 /* ---------------- Footer / misc ---------------- */
 
 .updated-note {
@@ -568,7 +731,7 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
     <div class="filters-row">
       <select id="f-date"><option value="">All Dates</option></select>
       <select id="f-group"><option value="">All Groups</option></select>
-      <select id="f-lottery">
+      <select id="f-lottery" onchange="updateTimeslotOptions()">
         <option value="">All Lotteries</option>
         <option value="DEAR">DEAR</option>
         <option value="KERALA">KERALA</option>
@@ -609,9 +772,14 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
         <option value="60">₹60</option>
         <option value="100">₹100</option>
       </select>
-      <input type="search" id="search-input" placeholder="Search message text…" />
       <button onclick="applyFilters()">Apply</button>
       <button class="reset-btn" onclick="resetFilters()">Reset</button>
+    </div>
+    <div class="filters-row" style="margin-top:8px">
+      <div class="search-wrap">
+        <input type="search" id="search-input" placeholder="Search — type sender: group: date: lottery: timeslot: category: rate: or free text" />
+        <div class="search-ac" id="search-ac"></div>
+      </div>
     </div>
     <div class="breadcrumbs" id="breadcrumbs"></div>
   </div>
@@ -661,6 +829,28 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
     </div>
   </div>
 
+  <!-- Booking Report -->
+  <div class="table-section" id="booking-report-section">
+    <div class="table-section-header">
+      <h3>Booking Report</h3>
+      <button onclick="generateReport()" style="background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:13px;cursor:pointer">Generate</button>
+    </div>
+    <div id="booking-report-container"></div>
+  </div>
+
+  <!-- Message Counts -->
+  <div class="table-section" id="msg-counts-section" style="display:none">
+    <div class="table-section-header">
+      <h3>Message Counts by Group &amp; Timeslot</h3>
+    </div>
+    <div class="table-wrapper">
+      <table id="msg-counts-table">
+        <thead><tr><th>Group</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Messages table -->
   <div class="table-section">
     <div class="table-section-header">
@@ -670,16 +860,16 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
     <div class="table-wrapper">
       <table>
         <thead>
-          <tr>
-            <th>Time</th>
-            <th>Group</th>
-            <th>Sender</th>
-            <th>Lottery</th>
-            <th>Timeslot</th>
-            <th>Category</th>
-            <th>Rate</th>
-            <th>Message</th>
-            <th></th>
+          <tr id="table-head-row">
+            <th data-col="0">Time</th>
+            <th data-col="1">Group</th>
+            <th data-col="2">Sender</th>
+            <th data-col="3">Lottery</th>
+            <th data-col="4">Timeslot</th>
+            <th data-col="5">Category</th>
+            <th data-col="6">Rate</th>
+            <th data-col="7">Message</th>
+            <th data-col="8"></th>
           </tr>
         </thead>
         <tbody id="messages-body">
@@ -694,8 +884,40 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
     </div>
   </div>
 
+  <!-- Admin: Group-Lottery Mapping -->
+  <div class="table-section" id="admin-section">
+    <div class="table-section-header" style="cursor:pointer" onclick="toggleAdmin()">
+      <h3>Admin: Group → Lottery Mapping</h3>
+      <span id="admin-toggle-icon" style="font-size:18px">▸</span>
+    </div>
+    <div id="admin-body" style="display:none">
+      <p style="font-size:13px;color:var(--muted);margin:0 0 12px">
+        Map each WhatsApp group to a lottery type. This <strong>overrides</strong> any lottery detected from message text.
+        After changing a mapping, click <em>Apply</em> to update all existing entries for that group.
+      </p>
+      <div class="table-wrapper">
+        <table id="admin-group-table">
+          <thead><tr>
+            <th>Group Name</th>
+            <th>Messages</th>
+            <th>Lottery</th>
+            <th>Set Lottery</th>
+            <th>Ignore Mode</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="admin-group-body">
+            <tr><td colspan="5" class="empty">Click header to load…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <div class="updated-note" id="updated-note"></div>
 </div>
+
+<!-- Column visibility context menu -->
+<div class="col-ctx-menu" id="col-ctx-menu"></div>
 
 <!-- Detail overlay -->
 <div class="detail-overlay" id="detail-overlay" onclick="if(event.target===this) closeDetail()">
@@ -736,13 +958,14 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
    ========================================================= */
 
 const API_BASE = "https://ticket-api.officembx.workers.dev";
+const API_KEY = "D@ssw0rd123";
 const PAGE_SIZE = 100;
 
 let currentPage = 0;
 let allMessagesCache = [];   // messages currently loaded for current filter/page (parsed)
 let allLoadedForCharts = []; // broader set used to build chart aggregates (best-effort, current page based)
 let groupsList = [];
-let filters = { date: "", group: "", lottery: "", timeslot: "", category: "", rate: "", q: "" };
+let filters = { date: "", group: "", lottery: "", timeslot: "", category: "", rate: "", sender: "", msgid: "", q: "" };
 let charts = {};
 
 /* =========================================================
@@ -854,6 +1077,8 @@ async function loadMessages() {
   if (filters.category) url += `&category=${encodeURIComponent(filters.category)}`;
   if (filters.group) url += `&group=${encodeURIComponent(filters.group)}`;
   if (filters.date) url += `&date=${filters.date}`;
+  if (filters.sender) url += `&sender=${encodeURIComponent(filters.sender)}`;
+  if (filters.msgid) url += `&msgid=${encodeURIComponent(filters.msgid)}`;
   if (filters.q) url += `&q=${encodeURIComponent(filters.q)}`;
 
   const data = await safeFetchJson(url);
@@ -937,6 +1162,33 @@ function populateDateFilterOptions(messages) {
    FILTER UI
    ========================================================= */
 
+const LOTTERY_TIMESLOTS = {
+  DEAR: ["1PM","6PM","8PM"],
+  KERALA: ["3PM"],
+  GOA: ["12PM","5PM","7PM"]
+};
+const ALL_TIMESLOTS = ["1PM","3PM","5PM","6PM","7PM","8PM","12PM"];
+
+function updateTimeslotOptions() {
+  const lotSel = document.getElementById("f-lottery");
+  const tsSel = document.getElementById("f-timeslot");
+  const currentTs = tsSel.value;
+  const lottery = lotSel.value;
+  const slots = lottery ? (LOTTERY_TIMESLOTS[lottery] || ALL_TIMESLOTS) : ALL_TIMESLOTS;
+
+  tsSel.innerHTML = '<option value="">All Timeslots</option>';
+  slots.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s; opt.textContent = s;
+    if (s === currentTs) opt.selected = true;
+    tsSel.appendChild(opt);
+  });
+  // If previously selected timeslot is not valid for new lottery, reset it
+  if (currentTs && !slots.includes(currentTs)) {
+    tsSel.value = "";
+  }
+}
+
 function applyFilters() {
   filters.date = document.getElementById("f-date").value;
   filters.group = document.getElementById("f-group").value;
@@ -944,20 +1196,50 @@ function applyFilters() {
   filters.timeslot = document.getElementById("f-timeslot").value;
   filters.category = document.getElementById("f-category").value;
   filters.rate = document.getElementById("f-rate").value;
-  filters.q = document.getElementById("search-input").value.trim();
+
+  // Parse search input for prefix:value patterns
+  const searchText = document.getElementById("search-input").value.trim();
+  const parsed = parseSearchPrefixes(searchText);
+  filters.q = parsed.q;
+  if (parsed.msgid) filters.msgid = parsed.msgid;
+  if (parsed.sender) filters.sender = parsed.sender;
+  if (parsed.date) filters.date = parsed.date;
+  if (parsed.lottery) filters.lottery = parsed.lottery.toUpperCase();
+  if (parsed.timeslot) filters.timeslot = parsed.timeslot.toUpperCase();
+  if (parsed.category) filters.category = parsed.category.toUpperCase();
+  if (parsed.rate) filters.rate = parsed.rate;
+  // group_name: search by name, resolve to jid from dropdown options
+  if (parsed.group_name) {
+    const sel = document.getElementById("f-group");
+    const match = Array.from(sel.options).find(o =>
+      o.textContent.toLowerCase().includes(parsed.group_name.toLowerCase())
+    );
+    if (match) filters.group = match.value;
+  }
+
   currentPage = 0;
   loadMessages();
 }
 
 function resetFilters() {
-  filters = { date: "", group: "", lottery: "", timeslot: "", category: "", rate: "", q: "" };
+  filters = { date: "", group: "", lottery: "", timeslot: "", category: "", rate: "", sender: "", msgid: "", q: "" };
   document.getElementById("f-date").value = "";
   document.getElementById("f-group").value = "";
   document.getElementById("f-lottery").value = "";
+  updateTimeslotOptions(); // restore all timeslots
   document.getElementById("f-timeslot").value = "";
   document.getElementById("f-category").value = "";
   document.getElementById("f-rate").value = "";
   document.getElementById("search-input").value = "";
+  currentPage = 0;
+  loadMessages();
+}
+
+function filterByMsgId(id) {
+  // Close detail panel, set msgid filter, reload
+  document.getElementById("detail-overlay").classList.remove("open");
+  filters.msgid = id;
+  document.getElementById("search-input").value = "msgid:" + id;
   currentPage = 0;
   loadMessages();
 }
@@ -981,7 +1263,8 @@ function renderBreadcrumbs() {
   const container = document.getElementById("breadcrumbs");
   const labels = {
     date: "Date", group: "Group", lottery: "Lottery",
-    timeslot: "Timeslot", category: "Category", rate: "Rate", q: "Search"
+    timeslot: "Timeslot", category: "Category", rate: "Rate",
+    sender: "Sender", msgid: "Message ID", q: "Search"
   };
   const parts = [];
   for (const key of Object.keys(labels)) {
@@ -1013,6 +1296,191 @@ function nextPage() {
   currentPage++;
   loadMessages();
 }
+
+/* =========================================================
+   COLUMN VISIBILITY
+   ========================================================= */
+
+const COL_NAMES = ["Time", "Group", "Sender", "Lottery", "Timeslot", "Category", "Rate", "Message", "Actions"];
+const colVisible = COL_NAMES.map(() => true);  // all visible by default
+
+function colHiddenCls(idx) { return colVisible[idx] ? "" : " col-hidden"; }
+
+function applyColVisibility() {
+  // Apply to header
+  document.querySelectorAll("#table-head-row th[data-col]").forEach(th => {
+    const ci = parseInt(th.dataset.col, 10);
+    th.classList.toggle("col-hidden", !colVisible[ci]);
+  });
+  // Apply to body
+  document.querySelectorAll("#messages-body td[data-col]").forEach(td => {
+    const ci = parseInt(td.dataset.col, 10);
+    td.classList.toggle("col-hidden", !colVisible[ci]);
+  });
+}
+
+function showColContextMenu(e) {
+  e.preventDefault();
+  const menu = document.getElementById("col-ctx-menu");
+  menu.innerHTML = COL_NAMES.map((name, i) => {
+    if (i === 8) return "";  // skip Actions column from menu
+    return `<label><input type="checkbox" ${colVisible[i] ? "checked" : ""} onchange="toggleCol(${i}, this.checked)">${name}</label>`;
+  }).join("");
+  menu.style.left = Math.min(e.clientX, window.innerWidth - 180) + "px";
+  menu.style.top = Math.min(e.clientY, window.innerHeight - 250) + "px";
+  menu.classList.add("show");
+}
+
+function toggleCol(idx, checked) {
+  colVisible[idx] = checked;
+  applyColVisibility();
+}
+
+// Wire up: right-click on any th in the header row
+document.addEventListener("DOMContentLoaded", () => {
+  const headRow = document.getElementById("table-head-row");
+  if (headRow) headRow.addEventListener("contextmenu", showColContextMenu);
+});
+
+// Close menu on click outside
+document.addEventListener("click", (e) => {
+  const menu = document.getElementById("col-ctx-menu");
+  if (menu && !menu.contains(e.target)) menu.classList.remove("show");
+  const ac = document.getElementById("search-ac");
+  if (ac && !ac.contains(e.target) && e.target.id !== "search-input") ac.classList.remove("show");
+});
+
+/* =========================================================
+   SEARCH PREFIX AUTOCOMPLETE
+   ========================================================= */
+
+const SEARCH_PREFIXES = [
+  { prefix: "msgid:",    desc: "Filter by message ID",     filterKey: "msgid" },
+  { prefix: "sender:",   desc: "Filter by sender name",    filterKey: "sender" },
+  { prefix: "group:",    desc: "Filter by group name",     filterKey: "group_name" },
+  { prefix: "date:",     desc: "Filter by date (YYYY-MM-DD)", filterKey: "date" },
+  { prefix: "lottery:",  desc: "DEAR, KERALA, GOA",        filterKey: "lottery" },
+  { prefix: "timeslot:", desc: "1PM, 3PM, 6PM, 8PM…",     filterKey: "timeslot" },
+  { prefix: "category:", desc: "FULL, HALF, AB/BC/AC…",    filterKey: "category" },
+  { prefix: "rate:",     desc: "10, 12, 25, 30, 60, 100…", filterKey: "rate" },
+];
+
+let acIndex = -1;  // active autocomplete item
+
+function getSearchCursorWord(input) {
+  const val = input.value;
+  const pos = input.selectionStart || val.length;
+  // Find the word being typed at cursor
+  const before = val.slice(0, pos);
+  const lastSpace = before.lastIndexOf(" ");
+  return { word: before.slice(lastSpace + 1), start: lastSpace + 1, pos };
+}
+
+function showSearchAutocomplete() {
+  const input = document.getElementById("search-input");
+  const ac = document.getElementById("search-ac");
+  const { word } = getSearchCursorWord(input);
+  const lower = word.toLowerCase();
+
+  if (!lower || lower.includes(":")) {
+    ac.classList.remove("show");
+    acIndex = -1;
+    return;
+  }
+
+  const matches = SEARCH_PREFIXES.filter(p => p.prefix.startsWith(lower));
+  if (matches.length === 0) {
+    ac.classList.remove("show");
+    acIndex = -1;
+    return;
+  }
+
+  ac.innerHTML = matches.map((m, i) =>
+    `<div class="search-ac-item${i === acIndex ? ' active' : ''}" data-idx="${i}" onmousedown="pickAutocomplete(${i})">
+      <span class="ac-prefix">${m.prefix}</span>
+      <span class="ac-desc">${m.desc}</span>
+    </div>`
+  ).join("");
+  ac.classList.add("show");
+}
+
+function pickAutocomplete(idx) {
+  const input = document.getElementById("search-input");
+  const ac = document.getElementById("search-ac");
+  const { word, start } = getSearchCursorWord(input);
+
+  const matches = SEARCH_PREFIXES.filter(p => p.prefix.startsWith(word.toLowerCase()));
+  if (idx < 0 || idx >= matches.length) return;
+
+  const chosen = matches[idx].prefix;
+  const val = input.value;
+  input.value = val.slice(0, start) + chosen + val.slice(start + word.length);
+  input.focus();
+  const newPos = start + chosen.length;
+  input.setSelectionRange(newPos, newPos);
+  ac.classList.remove("show");
+  acIndex = -1;
+}
+
+// Parse "sender:john lottery:DEAR free text" into filter updates + remaining q
+function parseSearchPrefixes(text) {
+  const result = { q: "" };
+  const parts = [];
+  // Match prefix:value (value can be quoted or unquoted)
+  const regex = /(\w+):(?:"([^"]+)"|(\S+))/g;
+  let lastIndex = 0;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    // Collect text before this match as free text
+    parts.push(text.slice(lastIndex, match.index).trim());
+    lastIndex = match.index + match[0].length;
+
+    const key = match[1].toLowerCase();
+    const value = match[2] || match[3];
+    const prefixDef = SEARCH_PREFIXES.find(p => p.prefix === key + ":");
+    if (prefixDef) {
+      result[prefixDef.filterKey] = value;
+    } else {
+      parts.push(match[0]);  // unknown prefix, keep as free text
+    }
+  }
+  parts.push(text.slice(lastIndex).trim());
+  result.q = parts.filter(Boolean).join(" ");
+  return result;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const input = document.getElementById("search-input");
+  if (!input) return;
+
+  input.addEventListener("input", () => showSearchAutocomplete());
+  input.addEventListener("focus", () => showSearchAutocomplete());
+
+  input.addEventListener("keydown", (e) => {
+    const ac = document.getElementById("search-ac");
+    if (!ac.classList.contains("show")) return;
+    const items = ac.querySelectorAll(".search-ac-item");
+    if (items.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      acIndex = Math.min(acIndex + 1, items.length - 1);
+      items.forEach((el, i) => el.classList.toggle("active", i === acIndex));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      acIndex = Math.max(acIndex - 1, 0);
+      items.forEach((el, i) => el.classList.toggle("active", i === acIndex));
+    } else if (e.key === "Tab" || e.key === "Enter") {
+      if (acIndex >= 0) {
+        e.preventDefault();
+        pickAutocomplete(acIndex);
+      }
+    } else if (e.key === "Escape") {
+      ac.classList.remove("show");
+      acIndex = -1;
+    }
+  });
+});
 
 /* =========================================================
    TABLE RENDERING
@@ -1050,15 +1518,15 @@ function renderTable(filtered) {
       : '<span class="p-none">—</span>';
 
     return `<tr onclick="openDetail(${idx})" style="cursor:pointer">
-      <td class="time-col">${time}</td>
-      <td class="group-col" title="${group}">${group}</td>
-      <td class="sender-col" title="${sender}">${sender}</td>
-      <td>${lotteryPill}</td>
-      <td>${tsPill}</td>
-      <td>${catPill}</td>
-      <td>${ratePill}</td>
-      <td class="msg-col" title="${text}">${text}</td>
-      <td style="color:var(--accent);font-size:11px;white-space:nowrap;cursor:pointer">View ›</td>
+      <td data-col="0" class="time-col${colHiddenCls(0)}">${time}</td>
+      <td data-col="1" class="group-col${colHiddenCls(1)}" title="${group}">${group}</td>
+      <td data-col="2" class="sender-col${colHiddenCls(2)}" title="${sender}">${sender}</td>
+      <td data-col="3" class="${colHiddenCls(3)}">${lotteryPill}</td>
+      <td data-col="4" class="${colHiddenCls(4)}">${tsPill}</td>
+      <td data-col="5" class="${colHiddenCls(5)}">${catPill}</td>
+      <td data-col="6" class="${colHiddenCls(6)}">${ratePill}</td>
+      <td data-col="7" class="msg-col${colHiddenCls(7)}" title="${text}">${text}</td>
+      <td data-col="8" class="${colHiddenCls(8)}" style="color:var(--accent);font-size:11px;white-space:nowrap;cursor:pointer">View ›</td>
     </tr>`;
   }).join("");
 }
@@ -1085,10 +1553,15 @@ function renderCharts(parsedMessages) {
   const dailyCounts = {};
 
   for (const { msg, parsed } of parsedMessages) {
-    if (parsed.lottery) lotteryCounts[parsed.lottery] = (lotteryCounts[parsed.lottery] || 0) + 1;
-    for (const c of (parsed.categories || [])) categoryCounts[c] = (categoryCounts[c] || 0) + 1;
-    if (parsed.timeslot) timeslotCounts[parsed.timeslot] = (timeslotCounts[parsed.timeslot] || 0) + 1;
-
+    // Count by entries, not messages — a message with 3 FULL + 2 3D10 entries
+    // contributes FULL=3, 3D10=2 to the category chart
+    const entries = parsed.entries || [];
+    for (const e of entries) {
+      if (e.lottery) lotteryCounts[e.lottery] = (lotteryCounts[e.lottery] || 0) + 1;
+      if (e.betType) categoryCounts[e.betType] = (categoryCounts[e.betType] || 0) + 1;
+      if (e.timeslot) timeslotCounts[e.timeslot] = (timeslotCounts[e.timeslot] || 0) + 1;
+    }
+    // Daily volume still counts by message
     if (msg.whatsapp_timestamp) {
       const d = new Date(msg.whatsapp_timestamp * 1000).toISOString().slice(0, 10);
       dailyCounts[d] = (dailyCounts[d] || 0) + 1;
@@ -1217,6 +1690,385 @@ function renderDailyBar(canvasId, countsObj) {
 }
 
 /* =========================================================
+   BOOKING REPORT
+   ========================================================= */
+
+// Fixed category display order with rate mapping
+const REPORT_ROWS = [
+  { label: "Full",     rate: 60,  matchTypes: null },
+  { label: "Half",     rate: 30,  matchTypes: null },
+  { label: "ABC",      rate: 12,  matchTypes: ["AB","BC","AC","A","B","C"] },
+  { label: "AB,BC,AC", rate: 12,  matchTypes: ["ALL","ABC",null] },
+  { label: "3D 10",    rate: 10,  matchTypes: null },
+  { label: "3D 25",    rate: 25,  matchTypes: null },
+  { label: "4D 20",    rate: 20,  matchTypes: null },
+  { label: "4D 50",    rate: 50,  matchTypes: null },
+  { label: "4D 100",   rate: 100, matchTypes: null },
+  { label: "5D 650",   rate: 650, matchTypes: null },
+];
+
+function reportThemeClass(lottery) {
+  if (!lottery) return "report-theme-default";
+  const l = lottery.toUpperCase();
+  if (l === "KERALA") return "report-theme-kerala";
+  if (l === "DEAR") return "report-theme-dear";
+  if (l === "GOA") return "report-theme-goa";
+  return "report-theme-default";
+}
+
+async function generateReport() {
+  const container = document.getElementById("booking-report-container");
+  container.innerHTML = '<div class="empty" style="padding:20px">Loading report…</div>';
+
+  // Use current dashboard filters
+  const lottery = filters.lottery || null;
+  const timeslot = filters.timeslot || null;
+  const date = filters.date || null;
+  const group = filters.group || null;
+
+  // Fetch booking data — if no group, fetch all groups separately
+  let groups = [];
+  if (group) {
+    groups = [group];
+  } else {
+    // Get distinct groups from the group dropdown
+    const sel = document.getElementById("f-group");
+    groups = Array.from(sel.options).filter(o => o.value).map(o => o.value);
+  }
+
+  if (groups.length === 0) {
+    container.innerHTML = '<div class="empty" style="padding:20px">Select filters and click Generate. At least one group must exist.</div>';
+    return;
+  }
+
+  // Determine which timeslots to report on
+  let timeslots = timeslot ? [timeslot] : ["1PM","3PM","5PM","6PM","7PM","8PM","12PM"];
+
+  let html = "";
+  for (const grp of groups) {
+    for (const ts of timeslots) {
+      let url = `${API_BASE}/api/report/booking?timeslot=${ts}&group=${encodeURIComponent(grp)}`;
+      if (lottery) url += `&lottery=${encodeURIComponent(lottery)}`;
+      if (date) url += `&date=${date}`;
+
+      const data = await safeFetchJson(url);
+      if (!data || !data.rows || data.rows.length === 0) continue;
+
+      const lotteryType = lottery || inferLotteryFromTimeslot(ts);
+      html += buildReportCard(data, lotteryType, ts, grp, date);
+    }
+  }
+
+  if (!html) {
+    container.innerHTML = '<div class="empty" style="padding:20px">No booking data found for the selected filters.</div>';
+    return;
+  }
+
+  container.innerHTML = html;
+
+  // Also load message counts
+  loadMessageCounts();
+}
+
+function inferLotteryFromTimeslot(ts) {
+  const map = { "1PM":"DEAR","3PM":"KERALA","5PM":"GOA","6PM":"DEAR","7PM":"GOA","8PM":"DEAR","12PM":"GOA" };
+  return map[ts] || null;
+}
+
+function buildReportCard(data, lottery, timeslot, groupJid, date) {
+  const theme = reportThemeClass(lottery);
+  const groupName = data.group_name || groupJid;
+  const dateStr = date || new Date().toISOString().slice(0, 10);
+  const cardId = `rpt-${groupJid}-${timeslot}`.replace(/[^a-zA-Z0-9-]/g, "_");
+
+  // Map server rows to report categories
+  const serverRows = data.rows || [];
+  const catData = REPORT_ROWS.map((cat, ci) => {
+    // Find matching server rows
+    let booking = 0, total = 0;
+    for (const sr of serverRows) {
+      if (sr.rate !== cat.rate) continue;
+      if (cat.matchTypes) {
+        if (cat.matchTypes.includes(sr.bet_type)) { booking += sr.booking; total += sr.total; }
+      } else {
+        // No type restriction — all entries at this rate
+        // But exclude rows already matched by type-specific categories at same rate
+        const typeSpecific = REPORT_ROWS.find(r => r.rate === cat.rate && r.matchTypes);
+        if (typeSpecific && typeSpecific.matchTypes.includes(sr.bet_type)) continue;
+        booking += sr.booking; total += sr.total;
+      }
+    }
+    return { ...cat, booking, total, idx: ci };
+  });
+
+  const grandBooking = catData.reduce((s, c) => s + c.booking, 0);
+  const grandTotal = catData.reduce((s, c) => s + c.total, 0);
+
+  let rows = catData.map(c =>
+    `<tr>
+      <td>${c.label}</td>
+      <td>${c.booking || ""}</td>
+      <td>${c.rate}</td>
+      <td>${c.total || ""}</td>
+      <td><input class="price-input" type="number" value="" placeholder="0"
+           oninput="updateBalance('${cardId}', ${c.idx}, this.value)"></td>
+      <td class="bal-cell" id="${cardId}-bal-${c.idx}">${c.total || 0}</td>
+    </tr>`
+  ).join("");
+
+  return `<div class="report-card ${theme}" id="${cardId}">
+    <div class="report-header">
+      <div class="rh-left">
+        <span>${timeslot}</span>
+        <span>${dateStr}</span>
+      </div>
+      <div class="rh-right">
+        <span>${lottery || "—"}</span> · <span>${escapeHtml(groupName)}</span>
+      </div>
+    </div>
+    <table class="report-table">
+      <thead><tr>
+        <th></th><th>Booking</th><th>Rate</th><th>Total</th><th>Price</th><th>Balance</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr>
+        <td></td>
+        <td>${grandBooking}</td>
+        <td></td>
+        <td>${grandTotal}</td>
+        <td><input class="price-input" type="number" value="" placeholder="0"
+             oninput="updateGrandBalance('${cardId}', this.value)" style="font-weight:700"></td>
+        <td class="bal-cell" id="${cardId}-bal-grand" style="font-weight:700">${grandTotal}</td>
+      </tr></tfoot>
+    </table>
+  </div>`;
+}
+
+// Store totals for balance calculation
+const reportTotals = {};
+
+function updateBalance(cardId, rowIdx, priceStr) {
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  const rows = card.querySelectorAll("tbody tr");
+  const row = rows[rowIdx];
+  if (!row) return;
+  const totalCell = row.querySelectorAll("td")[3];
+  const total = parseFloat(totalCell.textContent) || 0;
+  const price = parseFloat(priceStr) || 0;
+  document.getElementById(`${cardId}-bal-${rowIdx}`).textContent = total - price;
+
+  // Recalculate grand balance
+  recalcGrandBalance(cardId);
+}
+
+function recalcGrandBalance(cardId) {
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  let totalSum = 0, priceSum = 0;
+  card.querySelectorAll("tbody tr").forEach(row => {
+    const cells = row.querySelectorAll("td");
+    totalSum += parseFloat(cells[3].textContent) || 0;
+    const input = cells[4].querySelector("input");
+    priceSum += parseFloat(input?.value) || 0;
+  });
+  document.getElementById(`${cardId}-bal-grand`).textContent = totalSum - priceSum;
+  // Clear grand price input since individual prices changed
+  const grandInput = card.querySelector("tfoot input");
+  if (grandInput) grandInput.value = "";
+}
+
+function updateGrandBalance(cardId, priceStr) {
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  // Get grand total from tfoot
+  const tfootCells = card.querySelectorAll("tfoot td");
+  const grandTotal = parseFloat(tfootCells[3].textContent) || 0;
+  const price = parseFloat(priceStr) || 0;
+  document.getElementById(`${cardId}-bal-grand`).textContent = grandTotal - price;
+}
+
+async function loadMessageCounts() {
+  const date = filters.date || null;
+  const lottery = filters.lottery || null;
+  let url = `${API_BASE}/api/report/message-counts?`;
+  if (date) url += `date=${date}&`;
+  if (lottery) url += `lottery=${encodeURIComponent(lottery)}&`;
+
+  const data = await safeFetchJson(url);
+  if (!data || !data.rows || data.rows.length === 0) {
+    document.getElementById("msg-counts-section").style.display = "none";
+    return;
+  }
+
+  // Build pivot: group → { timeslot → { msg_count, total_tickets } }
+  const groups = {};
+  const allTimeslots = new Set();
+  for (const r of data.rows) {
+    const gName = r.group_name || r.group_jid;
+    if (!groups[gName]) groups[gName] = {};
+    allTimeslots.add(r.timeslot || "—");
+    const key = r.timeslot || "—";
+    if (!groups[gName][key]) groups[gName][key] = { msgs: 0, tickets: 0 };
+    groups[gName][key].msgs += r.msg_count;
+    groups[gName][key].tickets += r.total_tickets;
+  }
+
+  const slots = ["1PM","3PM","5PM","6PM","7PM","8PM","12PM"].filter(s => allTimeslots.has(s));
+  if (allTimeslots.has("—")) slots.push("—");
+
+  let thead = "<tr><th>Group</th>" + slots.map(s => `<th>${s}<br><small>Msgs / Tickets</small></th>`).join("") + "<th>Total</th></tr>";
+  let tbody = "";
+  for (const [gName, slotData] of Object.entries(groups)) {
+    let totalMsgs = 0, totalTickets = 0;
+    let cells = slots.map(s => {
+      const d = slotData[s];
+      if (!d) return "<td>—</td>";
+      totalMsgs += d.msgs;
+      totalTickets += d.tickets;
+      return `<td>${d.msgs} / ${d.tickets}</td>`;
+    }).join("");
+    tbody += `<tr><td>${escapeHtml(gName)}</td>${cells}<td style="font-weight:600">${totalMsgs} / ${totalTickets}</td></tr>`;
+  }
+
+  const table = document.getElementById("msg-counts-table");
+  table.querySelector("thead").innerHTML = thead;
+  table.querySelector("tbody").innerHTML = tbody;
+  document.getElementById("msg-counts-section").style.display = "";
+}
+
+/* =========================================================
+   ADMIN: GROUP-LOTTERY MAPPING
+   ========================================================= */
+
+let adminLoaded = false;
+
+function toggleAdmin() {
+  const body = document.getElementById("admin-body");
+  const icon = document.getElementById("admin-toggle-icon");
+  const isOpen = body.style.display !== "none";
+  body.style.display = isOpen ? "none" : "";
+  icon.textContent = isOpen ? "▸" : "▾";
+  if (!isOpen && !adminLoaded) loadAdminGroups();
+}
+
+async function loadAdminGroups() {
+  const tbody = document.getElementById("admin-group-body");
+  tbody.innerHTML = '<tr><td colspan="5" class="empty">Loading…</td></tr>';
+
+  const data = await safeFetchJson(`${API_BASE}/api/admin/group-map`);
+  if (!data || !data.groups) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Failed to load groups</td></tr>';
+    return;
+  }
+
+  adminLoaded = true;
+
+  tbody.innerHTML = data.groups.map(g => {
+    const mapped = g.mapped_lottery;
+    const ignore = g.ignore_mode || "none";
+    const mappedClass = mapped
+      ? `admin-mapped admin-mapped-${mapped.toLowerCase()}`
+      : "admin-mapped admin-mapped-auto";
+    const mappedLabel = mapped || "Auto-detect";
+
+    const ignoreBadge = ignore === "ignore_collect"
+      ? '<span style="color:#c0392b;font-weight:600">Dropped</span>'
+      : ignore === "ignore_parse"
+      ? '<span style="color:#b5750a;font-weight:600">Store only</span>'
+      : '<span style="color:var(--muted)">Active</span>';
+
+    return `<tr data-jid="${escapeHtml(g.group_jid)}" ${ignore !== 'none' ? 'style="opacity:0.6"' : ''}>
+      <td title="${escapeHtml(g.group_jid)}">${escapeHtml(g.group_name || g.group_jid)}</td>
+      <td style="text-align:center">${g.message_count}</td>
+      <td><span class="${mappedClass}">${mappedLabel}</span></td>
+      <td>
+        <select id="map-${cssId(g.group_jid)}">
+          <option value="">Auto-detect</option>
+          <option value="DEAR" ${mapped==='DEAR'?'selected':''}>DEAR</option>
+          <option value="KERALA" ${mapped==='KERALA'?'selected':''}>KERALA</option>
+          <option value="GOA" ${mapped==='GOA'?'selected':''}>GOA</option>
+        </select>
+      </td>
+      <td>
+        <select id="ign-${cssId(g.group_jid)}">
+          <option value="none" ${ignore==='none'?'selected':''}>Active</option>
+          <option value="ignore_parse" ${ignore==='ignore_parse'?'selected':''}>Ignore (store only)</option>
+          <option value="ignore_collect" ${ignore==='ignore_collect'?'selected':''}>Ignore (don't collect)</option>
+        </select>
+      </td>
+      <td style="white-space:nowrap">
+        <button class="admin-btn admin-btn-save" onclick="saveMapping('${escapeHtml(g.group_jid)}','${escapeHtml(g.group_name||'')}')">Save</button>
+        <button class="admin-btn admin-btn-apply" onclick="applyMapping('${escapeHtml(g.group_jid)}')">Apply</button>
+        <button class="admin-btn admin-btn-clear" onclick="clearMapping('${escapeHtml(g.group_jid)}')">Clear</button>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+function cssId(jid) {
+  return jid.replace(/[^a-zA-Z0-9]/g, "_");
+}
+
+async function saveMapping(groupJid, groupName) {
+  const sel = document.getElementById("map-" + cssId(groupJid));
+  const ignSel = document.getElementById("ign-" + cssId(groupJid));
+  const lottery = sel.value;
+  const ignoreMode = ignSel ? ignSel.value : "none";
+
+  if (!lottery && ignoreMode === "none") {
+    // Clear mapping instead
+    return clearMapping(groupJid);
+  }
+
+  const resp = await fetch(`${API_BASE}/api/admin/group-map`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
+    body: JSON.stringify({ group_jid: groupJid, lottery_type: lottery || null, group_name: groupName, ignore_mode: ignoreMode })
+  });
+
+  if (resp.ok) {
+    adminLoaded = false;
+    loadAdminGroups();
+  } else {
+    alert("Failed to save mapping");
+  }
+}
+
+async function applyMapping(groupJid) {
+  if (!confirm("This will update ALL existing parsed entries for this group to the mapped lottery. Continue?")) return;
+
+  const resp = await fetch(`${API_BASE}/api/admin/remap-group`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
+    body: JSON.stringify({ group_jid: groupJid })
+  });
+
+  if (resp.ok) {
+    const data = await resp.json();
+    alert(`Updated ${data.updated} entries to ${data.lottery_type}`);
+  } else {
+    const err = await resp.json().catch(() => ({}));
+    alert(err.error || "Failed to apply mapping");
+  }
+}
+
+async function clearMapping(groupJid) {
+  const resp = await fetch(`${API_BASE}/api/admin/group-map`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
+    body: JSON.stringify({ group_jid: groupJid })
+  });
+
+  if (resp.ok) {
+    adminLoaded = false;
+    loadAdminGroups();
+  } else {
+    alert("Failed to clear mapping");
+  }
+}
+
+/* =========================================================
    MESSAGE DETAIL PANEL
    ========================================================= */
 
@@ -1231,9 +2083,12 @@ function openDetail(idx) {
       })
     : "—";
 
-  const msgIdShort = msg.message_id ? msg.message_id.slice(0, 20) + "…" : "—";
+  const msgIdDisplay = msg.message_id || "—";
+  const msgIdLink = msg.message_id
+    ? `<a href="#" onclick="event.preventDefault();filterByMsgId('${escapeHtml(msg.message_id)}')" style="color:var(--accent);text-decoration:underline;cursor:pointer" title="Click to filter by this message ID">${escapeHtml(msgIdDisplay)}</a>`
+    : "—";
   document.getElementById("detail-meta").innerHTML =
-    `${escapeHtml(msg.group_name || msg.group_jid || "Unknown group")} · ${escapeHtml(msg.push_name || msg.sender || "Unknown sender")} · ${time}<br><span style="font-size:11px;color:var(--muted)">ID: ${escapeHtml(msg.message_id || "—")}</span>`;
+    `${escapeHtml(msg.group_name || msg.group_jid || "Unknown group")} · ${escapeHtml(msg.push_name || msg.sender || "Unknown sender")} · ${time}<br><span style="font-size:11px;color:var(--muted)">ID: ${msgIdLink}</span>`;
 
   document.getElementById("detail-raw").innerHTML = renderTokenHtml(parsed.classified);
   document.getElementById("detail-yaml").innerHTML = renderYamlHtml(msg, parsed);
@@ -1388,7 +2243,7 @@ const KNOWN = {
   "ab": "POSITION", "bc": "POSITION", "ac": "POSITION", "abc": "POSITION",
   "all": "POSITION", "board": "POSITION", "bord": "POSITION", "borad": "POSITION", "bort": "POSITION",
   // QTY
-  "set": "QTY", "sets": "QTY", "each": "QTY", "ech": "QTY", "ea": "QTY",
+  "set": "QTY", "sets": "QTY", "each": "QTY", "eac": "QTY", "ech": "QTY", "ea": "QTY",
   "pes": "QTY", "pcs": "QTY", "st": "QTY", "sat": "QTY",
   // RATE
   "rs": "RATE", "rupise": "RATE", "ra": "RATE", "pice": "RATE", "₹": "RATE", "re": "RATE",
@@ -1489,13 +2344,24 @@ function classifyWithContext(tokens) {
     const nextMeaningful = findNearby(classified, i, 1);
 
     // Rule 1: small number (1-9) near QTY keyword -> QTY
+    // But NOT when the number follows a POSITION (e.g. "All 8" = number 8, not qty)
     if (tok.raw.length === 1 && numVal >= 1 && numVal <= 9) {
+      const prevIsPosition = prevMeaningful && prevMeaningful.type === "POSITION";
       if ((prevMeaningful && prevMeaningful.type === "QTY") ||
-          (nextMeaningful && nextMeaningful.type === "QTY") ||
-          (prevMeaningful && ["set", "sets", "each", "ech", "ea", "pes", "pcs", "st", "sat"].includes(prevMeaningful.raw.toLowerCase()))) {
+          (!prevIsPosition && nextMeaningful && nextMeaningful.type === "QTY") ||
+          (prevMeaningful && ["set", "sets", "each", "eac", "ech", "ea", "pes", "pcs", "st", "sat"].includes(prevMeaningful.raw.toLowerCase()))) {
         tok.type = "QTY";
         continue;
       }
+    }
+
+    // Rule 1b: any number before a QTY *keyword* -> QTY (tie-break: QTY wins)
+    // e.g. "10 each", "20 set" — but not "All 8 Each" (POSITION protects the number)
+    if (nextMeaningful && nextMeaningful.type === "QTY" &&
+        ["set", "sets", "each", "eac", "ech", "ea", "pes", "pcs", "st", "sat"].includes(nextMeaningful.raw.toLowerCase()) &&
+        !(prevMeaningful && prevMeaningful.type === "POSITION")) {
+      tok.type = "QTY";
+      continue;
     }
 
     // Rule 2: Rs/₹ near number matching a valid rate -> RATE
@@ -1505,6 +2371,15 @@ function classifyWithContext(tokens) {
         tok.type = "RATE";
         continue;
       }
+    }
+
+    // Rule 2b: number immediately after a QTY *keyword* (each, set, etc.) -> QTY
+    // e.g. "Each 10" means qty=10. Check raw text to avoid cascading
+    // (a number reclassified to QTY should not trigger this for the next number).
+    if (prevMeaningful && prevMeaningful.type === "QTY" &&
+        ["set", "sets", "each", "eac", "ech", "ea", "pes", "pcs", "st", "sat"].includes(prevMeaningful.raw.toLowerCase())) {
+      tok.type = "QTY";
+      continue;
     }
 
     // Rule 3: pm/am near number matching draw times -> TIMESLOT
@@ -1587,6 +2462,15 @@ function splitCompoundToken(tok) {
       return [
         { type: "word", raw: raw.slice(0, m[1].length) },
         { type: "num", raw: raw.slice(m[1].length) }
+      ];
+    }
+
+    // Number + QTY keyword: 10each, 5set, 10eac, 10pes
+    m = lower.match(/^(\d+)(set|sets|each|eac|ech|ea|pes|pcs|st|sat)$/);
+    if (m) {
+      return [
+        { type: "num", raw: raw.slice(0, m[1].length) },
+        { type: "word", raw: raw.slice(m[1].length) }
       ];
     }
   }

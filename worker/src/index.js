@@ -47,7 +47,25 @@ export default {
                 let inserted = 0
                 let entriesInserted = 0
 
+                // Pre-fetch group configs for ignore checks
+                const groupConfigs = {}
+                try {
+                    const cfgRows = await env.DB.prepare(
+                        "SELECT group_jid, lottery_type, ignore_mode FROM group_config"
+                    ).all()
+                    for (const r of (cfgRows.results || [])) {
+                        groupConfigs[r.group_jid] = r
+                    }
+                } catch (_) { /* table may not exist yet */ }
+
                 for (const msg of messages) {
+
+                    // Check ignore mode
+                    const groupCfg = groupConfigs[msg.group_jid]
+                    const ignoreMode = groupCfg?.ignore_mode || "none"
+
+                    // ignore_collect: drop entirely — don't store, don't parse
+                    if (ignoreMode === "ignore_collect") continue
 
                     try {
                         const insertResult = await env.DB.prepare(`
@@ -67,6 +85,9 @@ export default {
 
                         inserted++
 
+                        // ignore_parse: store message but skip parsing
+                        if (ignoreMode === "ignore_parse") continue
+
                         // Parse the message and store betting entries (only if the row was
                         // actually inserted — avoids reparsing duplicates on retry)
                         if (insertResult.meta?.changes > 0 && msg.text && !isNoise(msg.text)) {
@@ -76,6 +97,11 @@ export default {
                                     msg.message_id, msg.whatsapp_timestamp,
                                     msg.sender, msg.push_name
                                 )
+                                // Apply admin group-lottery override if configured
+                                if (groupCfg?.lottery_type) {
+                                    parsed.lottery = groupCfg.lottery_type
+                                }
+
                                 if (parsed.entries.length > 0) {
                                     const stmts = parsed.entries.map(entry =>
                                         env.DB.prepare(`
@@ -365,8 +391,45 @@ export default {
                 const group = url.searchParams.get("group") || null
                 const date = url.searchParams.get("date") || null
                 const search = url.searchParams.get("q") || null
+                const sender = url.searchParams.get("sender") || null
+                const msgId = url.searchParams.get("msgid") || null
                 const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 500)
                 const offset = parseInt(url.searchParams.get("offset") || "0")
+
+                // Direct message_id lookup — bypass entry filters
+                if (msgId) {
+                    const msg = await env.DB.prepare(
+                        "SELECT * FROM messages WHERE message_id = ?"
+                    ).bind(msgId).first()
+                    if (!msg) {
+                        return json({ messages: [], meta: { total: 0, limit, offset } }, 200, corsHeaders)
+                    }
+                    const entries = await env.DB.prepare(
+                        "SELECT * FROM parsed_entries WHERE message_id = ? ORDER BY id"
+                    ).bind(msgId).all()
+                    const entryList = (entries.results || []).map(e => ({
+                        number: e.bet_number, betType: e.bet_type, qty: e.quantity,
+                        rate: e.rate, price: e.price, rawLine: e.raw_line,
+                        lottery: e.lottery_type, timeslot: e.timeslot,
+                    }))
+                    return json({
+                        messages: [{
+                            message_id: msg.message_id,
+                            whatsapp_timestamp: msg.whatsapp_timestamp,
+                            group_jid: msg.group_jid,
+                            group_name: msg.group_name,
+                            sender: msg.sender,
+                            push_name: msg.push_name,
+                            text: msg.text,
+                            lottery: entryList[0]?.lottery || null,
+                            timeslot: entryList[0]?.timeslot || null,
+                            categories: [...new Set(entryList.map(e => e.betType).filter(Boolean))],
+                            rates: [...new Set(entryList.map(e => e.rate).filter(r => r != null))],
+                            entries: entryList,
+                        }],
+                        meta: { total: 1, limit, offset }
+                    }, 200, corsHeaders)
+                }
 
                 // Step 1: Find matching message_ids from parsed_entries
                 let entryFilter = "WHERE 1=1"
@@ -473,10 +536,236 @@ export default {
                     messages = messages.filter(m => (m.text || "").toLowerCase().includes(q))
                 }
 
+                // Sender filter (on push_name or sender)
+                if (sender) {
+                    const s = sender.toLowerCase()
+                    messages = messages.filter(m =>
+                        (m.push_name || "").toLowerCase().includes(s) ||
+                        (m.sender || "").toLowerCase().includes(s)
+                    )
+                }
+
                 return json({
                     messages,
                     meta: { total: totalResult?.count || 0, limit, offset }
                 }, 200, corsHeaders)
+            }
+
+            // =================================================
+            // GET /api/admin/group-map — list all group-lottery mappings
+            // =================================================
+
+            if (url.pathname === "/api/admin/group-map" && method === "GET") {
+                // Return all groups (from messages) with their mapping status
+                const allGroups = await env.DB.prepare(`
+                    SELECT m.group_jid, m.group_name, COUNT(*) as message_count,
+                           gc.lottery_type as mapped_lottery,
+                           COALESCE(gc.ignore_mode, 'none') as ignore_mode
+                    FROM messages m
+                    LEFT JOIN group_config gc ON gc.group_jid = m.group_jid
+                    GROUP BY m.group_jid
+                    ORDER BY m.group_name
+                `).all()
+
+                return json({ groups: allGroups.results || [] }, 200, corsHeaders)
+            }
+
+            // =================================================
+            // POST /api/admin/group-map — set group-lottery mapping
+            // =================================================
+
+            if (url.pathname === "/api/admin/group-map" && method === "POST") {
+                const apiKey = request.headers.get("x-api-key")
+                if (apiKey !== env.API_KEY) {
+                    return json({ error: "Unauthorized" }, 401, corsHeaders)
+                }
+
+                const body = await request.json()
+                const { group_jid, lottery_type, group_name, ignore_mode } = body
+
+                if (!group_jid) {
+                    return json({ error: "group_jid required" }, 400, corsHeaders)
+                }
+                if (lottery_type && !["DEAR", "KERALA", "GOA"].includes(lottery_type)) {
+                    return json({ error: "lottery_type must be DEAR, KERALA, or GOA" }, 400, corsHeaders)
+                }
+                const mode = ignore_mode || "none"
+                if (!["none", "ignore_parse", "ignore_collect"].includes(mode)) {
+                    return json({ error: "ignore_mode must be none, ignore_parse, or ignore_collect" }, 400, corsHeaders)
+                }
+
+                await env.DB.prepare(`
+                    INSERT INTO group_config (group_jid, group_name, lottery_type, ignore_mode, updated_at)
+                    VALUES (?, ?, ?, ?, datetime('now'))
+                    ON CONFLICT(group_jid) DO UPDATE SET
+                        lottery_type = excluded.lottery_type,
+                        group_name = excluded.group_name,
+                        ignore_mode = excluded.ignore_mode,
+                        updated_at = datetime('now')
+                `).bind(group_jid, group_name || null, lottery_type || null, mode).run()
+
+                return json({ ok: true, group_jid, lottery_type: lottery_type || null, ignore_mode: mode }, 200, corsHeaders)
+            }
+
+            // =================================================
+            // DELETE /api/admin/group-map — remove mapping (revert to auto-detect)
+            // =================================================
+
+            if (url.pathname === "/api/admin/group-map" && method === "DELETE") {
+                const apiKey = request.headers.get("x-api-key")
+                if (apiKey !== env.API_KEY) {
+                    return json({ error: "Unauthorized" }, 401, corsHeaders)
+                }
+
+                const body = await request.json()
+                const { group_jid } = body
+                if (!group_jid) {
+                    return json({ error: "group_jid required" }, 400, corsHeaders)
+                }
+
+                await env.DB.prepare(
+                    "DELETE FROM group_config WHERE group_jid = ?"
+                ).bind(group_jid).run()
+
+                return json({ ok: true, group_jid, lottery_type: null }, 200, corsHeaders)
+            }
+
+            // =================================================
+            // POST /api/admin/remap-group — apply mapping to existing entries
+            // =================================================
+
+            if (url.pathname === "/api/admin/remap-group" && method === "POST") {
+                const apiKey = request.headers.get("x-api-key")
+                if (apiKey !== env.API_KEY) {
+                    return json({ error: "Unauthorized" }, 401, corsHeaders)
+                }
+
+                const body = await request.json()
+                const { group_jid } = body
+                if (!group_jid) {
+                    return json({ error: "group_jid required" }, 400, corsHeaders)
+                }
+
+                const mapping = await env.DB.prepare(
+                    "SELECT lottery_type FROM group_config WHERE group_jid = ?"
+                ).bind(group_jid).first()
+
+                if (!mapping) {
+                    return json({ error: "No mapping found for this group" }, 400, corsHeaders)
+                }
+
+                const result = await env.DB.prepare(
+                    "UPDATE parsed_entries SET lottery_type = ? WHERE group_jid = ?"
+                ).bind(mapping.lottery_type, group_jid).run()
+
+                return json({
+                    ok: true,
+                    group_jid,
+                    lottery_type: mapping.lottery_type,
+                    updated: result.meta?.changes || 0
+                }, 200, corsHeaders)
+            }
+
+            // =================================================
+            // GET /api/admin/ignored-groups — list groups the collector should skip
+            // Returns group_jids with ignore_collect mode (collector polls this)
+            // =================================================
+
+            if (url.pathname === "/api/admin/ignored-groups" && method === "GET") {
+                try {
+                    const rows = await env.DB.prepare(
+                        "SELECT group_jid, ignore_mode FROM group_config WHERE ignore_mode != 'none'"
+                    ).all()
+                    return json({
+                        skip_collect: (rows.results || []).filter(r => r.ignore_mode === "ignore_collect").map(r => r.group_jid),
+                        skip_parse: (rows.results || []).filter(r => r.ignore_mode === "ignore_parse").map(r => r.group_jid),
+                    }, 200, corsHeaders)
+                } catch (_) {
+                    return json({ skip_collect: [], skip_parse: [] }, 200, corsHeaders)
+                }
+            }
+
+            // =================================================
+            // GET /api/report/booking — aggregated booking report
+            // =================================================
+
+            if (url.pathname === "/api/report/booking" && method === "GET") {
+                const lottery = url.searchParams.get("lottery") || null
+                const timeslot = url.searchParams.get("timeslot") || null
+                const date = url.searchParams.get("date") || null
+                const group = url.searchParams.get("group") || null
+
+                let where = "WHERE 1=1"
+                const params = []
+
+                if (lottery) { where += " AND lottery_type = ?"; params.push(lottery) }
+                if (timeslot) { where += " AND timeslot = ?"; params.push(timeslot) }
+                if (group) { where += " AND group_jid = ?"; params.push(group) }
+                if (date) {
+                    const startTs = Math.floor(new Date(date + "T00:00:00Z").getTime() / 1000)
+                    const endTs = startTs + 86400
+                    where += " AND whatsapp_timestamp >= ? AND whatsapp_timestamp < ?"
+                    params.push(startTs, endTs)
+                }
+
+                const rows = await env.DB.prepare(`
+                    SELECT bet_type, rate,
+                           SUM(quantity) as booking,
+                           SUM(price) as total,
+                           COUNT(DISTINCT message_id) as msg_count
+                    FROM parsed_entries
+                    ${where}
+                    GROUP BY bet_type, rate
+                    ORDER BY rate DESC, bet_type
+                `).bind(...params).all()
+
+                // Group name for display
+                let groupName = null
+                if (group) {
+                    const g = await env.DB.prepare(
+                        "SELECT group_name FROM messages WHERE group_jid = ? LIMIT 1"
+                    ).bind(group).first()
+                    groupName = g?.group_name || group
+                }
+
+                return json({
+                    rows: rows.results || [],
+                    group_name: groupName,
+                    filters: { lottery, timeslot, date, group }
+                }, 200, corsHeaders)
+            }
+
+            // =================================================
+            // GET /api/report/message-counts — messages per day/timeslot/group
+            // =================================================
+
+            if (url.pathname === "/api/report/message-counts" && method === "GET") {
+                const date = url.searchParams.get("date") || null
+                const lottery = url.searchParams.get("lottery") || null
+
+                let where = "WHERE pe.message_id IS NOT NULL"
+                const params = []
+
+                if (lottery) { where += " AND pe.lottery_type = ?"; params.push(lottery) }
+                if (date) {
+                    const startTs = Math.floor(new Date(date + "T00:00:00Z").getTime() / 1000)
+                    const endTs = startTs + 86400
+                    where += " AND pe.whatsapp_timestamp >= ? AND pe.whatsapp_timestamp < ?"
+                    params.push(startTs, endTs)
+                }
+
+                const rows = await env.DB.prepare(`
+                    SELECT pe.group_jid, pe.group_name, pe.timeslot,
+                           DATE(pe.whatsapp_timestamp, 'unixepoch') as day,
+                           COUNT(DISTINCT pe.message_id) as msg_count,
+                           SUM(pe.quantity) as total_tickets
+                    FROM parsed_entries pe
+                    ${where}
+                    GROUP BY pe.group_jid, pe.timeslot, day
+                    ORDER BY day DESC, pe.group_name, pe.timeslot
+                `).bind(...params).all()
+
+                return json({ rows: rows.results || [] }, 200, corsHeaders)
             }
 
             // =================================================
@@ -524,6 +813,14 @@ export default {
                             msg.message_id, msg.whatsapp_timestamp,
                             msg.sender, msg.push_name
                         )
+
+                        // Apply admin group-lottery override
+                        try {
+                            const override = await env.DB.prepare(
+                                "SELECT lottery_type FROM group_config WHERE group_jid = ?"
+                            ).bind(msg.group_jid).first()
+                            if (override) parsed.lottery = override.lottery_type
+                        } catch (_) {}
 
                         if (parsed.entries.length > 0) {
                             const stmts = parsed.entries.map(entry =>

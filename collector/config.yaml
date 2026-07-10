@@ -1,6 +1,6 @@
 # Cloudflare Worker endpoint
 worker_url: "https://ticket-api.officembx.workers.dev/api/messages"
-api_key: "CHANGE_ME_TO_A_SECURE_KEY"
+api_key: "D@ssw0rd123"
 
 # Heartbeat interval (ms)
 heartbeat_interval: 300000  # 5 minutes

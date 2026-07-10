@@ -180,6 +180,30 @@ let _groupCache = null
 let _messageIndex = null
 let _messageIndexDirty = false
 
+// Server-side ignore lists (polled periodically)
+let _ignoreCollect = new Set()  // groups to drop entirely
+let _ignoreParse = new Set()    // groups to store but skip parsing (handled server-side, collector just knows)
+
+async function pollIgnoredGroups() {
+    try {
+        const config = getConfig()
+        const baseUrl = config.worker_url.replace(/\/api\/messages$/, "")
+        const resp = await fetch(`${baseUrl}/api/admin/ignored-groups`, {
+            headers: { "x-api-key": config.api_key }
+        })
+        if (resp.ok) {
+            const data = await resp.json()
+            _ignoreCollect = new Set(data.skip_collect || [])
+            _ignoreParse = new Set(data.skip_parse || [])
+            if (_ignoreCollect.size || _ignoreParse.size) {
+                console.log(`[IGNORE] collect: ${_ignoreCollect.size} groups, parse-only: ${_ignoreParse.size} groups`)
+            }
+        }
+    } catch (err) {
+        console.log("[IGNORE] Failed to poll ignored groups:", err.message)
+    }
+}
+
 function getConfig() {
     if (!_config) _config = loadConfig()
     return _config
@@ -221,6 +245,9 @@ async function processMessage(sock, msg, poster, historical = false) {
 
         const remoteJid = msg.key?.remoteJid
         if (!remoteJid || !remoteJid.endsWith("@g.us")) return
+
+        // Skip groups marked as ignore_collect on server
+        if (_ignoreCollect.has(remoteJid)) return
 
         const config = getConfig()
         const groupCache = getGroupCache()
@@ -322,6 +349,9 @@ async function start() {
         config.worker_url,
         config.api_key
     )
+
+    // Poll ignored groups on startup
+    await pollIgnoredGroups()
 
     // Heartbeat (single interval, never stacked)
     const heartbeatMs = config.heartbeat_interval || 300000
