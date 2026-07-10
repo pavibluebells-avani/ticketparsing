@@ -353,6 +353,133 @@ export default {
             }
 
             // =================================================
+            // GET /api/parsed/messages — messages with server-parsed entries
+            // Returns messages joined with their parsed entries, grouped by message
+            // =================================================
+
+            if (url.pathname === "/api/parsed/messages" && method === "GET") {
+
+                const lotteryType = url.searchParams.get("lottery") || null
+                const timeslot = url.searchParams.get("timeslot") || null
+                const category = url.searchParams.get("category") || null
+                const group = url.searchParams.get("group") || null
+                const date = url.searchParams.get("date") || null
+                const search = url.searchParams.get("q") || null
+                const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 500)
+                const offset = parseInt(url.searchParams.get("offset") || "0")
+
+                // Step 1: Find matching message_ids from parsed_entries
+                let entryFilter = "WHERE 1=1"
+                const entryParams = []
+
+                if (lotteryType) {
+                    entryFilter += " AND pe.lottery_type = ?"
+                    entryParams.push(lotteryType)
+                }
+                if (timeslot) {
+                    entryFilter += " AND pe.timeslot = ?"
+                    entryParams.push(timeslot)
+                }
+                if (category) {
+                    entryFilter += " AND pe.bet_type = ?"
+                    entryParams.push(category)
+                }
+                if (group) {
+                    entryFilter += " AND pe.group_jid = ?"
+                    entryParams.push(group)
+                }
+                if (date) {
+                    const startTs = Math.floor(new Date(date + "T00:00:00Z").getTime() / 1000)
+                    const endTs = startTs + 86400
+                    entryFilter += " AND pe.whatsapp_timestamp >= ? AND pe.whatsapp_timestamp < ?"
+                    entryParams.push(startTs, endTs)
+                }
+
+                // Count distinct messages matching filters
+                const countQ = `SELECT COUNT(DISTINCT pe.message_id) as count FROM parsed_entries pe ${entryFilter}`
+                const totalResult = await env.DB.prepare(countQ).bind(...entryParams).first()
+
+                // Get paginated message_ids
+                const msgIdQ = `SELECT DISTINCT pe.message_id, MAX(pe.whatsapp_timestamp) as ts
+                    FROM parsed_entries pe ${entryFilter}
+                    GROUP BY pe.message_id
+                    ORDER BY ts DESC
+                    LIMIT ? OFFSET ?`
+                const msgIdResult = await env.DB.prepare(msgIdQ).bind(...entryParams, limit, offset).all()
+
+                const messageIds = msgIdResult.results.map(r => r.message_id)
+
+                if (messageIds.length === 0) {
+                    return json({
+                        messages: [],
+                        meta: { total: totalResult?.count || 0, limit, offset }
+                    }, 200, corsHeaders)
+                }
+
+                // Step 2: Fetch full messages
+                const placeholders = messageIds.map(() => '?').join(',')
+                const msgsResult = await env.DB.prepare(
+                    `SELECT * FROM messages WHERE message_id IN (${placeholders}) ORDER BY whatsapp_timestamp DESC`
+                ).bind(...messageIds).all()
+
+                // Step 3: Fetch all parsed entries for these messages
+                const entriesResult = await env.DB.prepare(
+                    `SELECT * FROM parsed_entries WHERE message_id IN (${placeholders}) ORDER BY id`
+                ).bind(...messageIds).all()
+
+                // Step 4: Group entries by message_id
+                const entriesByMsg = {}
+                for (const e of entriesResult.results) {
+                    if (!entriesByMsg[e.message_id]) entriesByMsg[e.message_id] = []
+                    entriesByMsg[e.message_id].push({
+                        number: e.bet_number,
+                        betType: e.bet_type,
+                        qty: e.quantity,
+                        rate: e.rate,
+                        price: e.price,
+                        rawLine: e.raw_line,
+                        lottery: e.lottery_type,
+                        timeslot: e.timeslot,
+                    })
+                }
+
+                // Step 5: Build response — apply text search filter if needed
+                let messages = msgsResult.results.map(msg => {
+                    const entries = entriesByMsg[msg.message_id] || []
+                    const lotteries = [...new Set(entries.map(e => e.lottery).filter(Boolean))]
+                    const timeslots = [...new Set(entries.map(e => e.timeslot).filter(Boolean))]
+                    const categories = [...new Set(entries.map(e => e.betType).filter(Boolean))]
+                    const rates = [...new Set(entries.map(e => e.rate).filter(r => r != null))]
+
+                    return {
+                        message_id: msg.message_id,
+                        whatsapp_timestamp: msg.whatsapp_timestamp,
+                        group_jid: msg.group_jid,
+                        group_name: msg.group_name,
+                        sender: msg.sender,
+                        push_name: msg.push_name,
+                        text: msg.text,
+                        lottery: lotteries[0] || null,
+                        timeslot: timeslots[0] || null,
+                        categories,
+                        rates,
+                        entries,
+                    }
+                })
+
+                // Text search filter (on message text)
+                if (search) {
+                    const q = search.toLowerCase()
+                    messages = messages.filter(m => (m.text || "").toLowerCase().includes(q))
+                }
+
+                return json({
+                    messages,
+                    meta: { total: totalResult?.count || 0, limit, offset }
+                }, 200, corsHeaders)
+            }
+
+            // =================================================
             // POST /api/reparse — reparse messages missing entries
             // =================================================
 

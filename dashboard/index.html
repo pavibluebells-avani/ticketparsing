@@ -846,85 +846,68 @@ async function loadGroups() {
 
 async function loadMessages() {
   const tbody = document.getElementById("messages-body");
-  const hasClientFilters = filters.lottery || filters.timeslot || filters.category || filters.rate || filters.q;
 
-  // If client-side filters are active, fetch a larger batch to filter from
-  const fetchLimit = hasClientFilters ? 1000 : PAGE_SIZE;
-
-  let url = `${API_BASE}/api/messages?limit=${fetchLimit}&offset=0`;
+  // Build URL with server-side filters — all filtering done by Worker
+  let url = `${API_BASE}/api/parsed/messages?limit=${PAGE_SIZE}&offset=${currentPage * PAGE_SIZE}`;
+  if (filters.lottery) url += `&lottery=${encodeURIComponent(filters.lottery)}`;
+  if (filters.timeslot) url += `&timeslot=${encodeURIComponent(filters.timeslot)}`;
+  if (filters.category) url += `&category=${encodeURIComponent(filters.category)}`;
   if (filters.group) url += `&group=${encodeURIComponent(filters.group)}`;
   if (filters.date) url += `&date=${filters.date}`;
-
-  // If no client filters, use server-side pagination
-  if (!hasClientFilters) {
-    url = `${API_BASE}/api/messages?limit=${PAGE_SIZE}&offset=${currentPage * PAGE_SIZE}`;
-    if (filters.group) url += `&group=${encodeURIComponent(filters.group)}`;
-    if (filters.date) url += `&date=${filters.date}`;
-  }
+  if (filters.q) url += `&q=${encodeURIComponent(filters.q)}`;
 
   const data = await safeFetchJson(url);
   if (!data) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">Failed to load messages</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">Failed to load messages</td></tr>';
     return;
   }
 
-  const rawMessages = data.messages || [];
+  const serverMessages = data.messages || [];
+  const totalCount = data.meta?.total || 0;
 
-  // Parse each message client-side
-  const parsedMessages = rawMessages.map(msg => {
-    const parsed = parseMessage(msg);
+  // Convert server response to the { msg, parsed } format used by renderTable/renderCharts
+  const parsedMessages = serverMessages.map(sm => {
+    const msg = {
+      message_id: sm.message_id,
+      whatsapp_timestamp: sm.whatsapp_timestamp,
+      group_jid: sm.group_jid,
+      group_name: sm.group_name,
+      sender: sm.sender,
+      push_name: sm.push_name,
+      text: sm.text,
+    };
+    // For token highlighting, run tokenizer only (no parsing logic)
+    const normalized = normalizeUnicode(sm.text || "");
+    const tokens = tokenize(normalized);
+    const classified = classifyWithContext(tokens);
+
+    const parsed = {
+      lottery: sm.lottery,
+      timeslot: sm.timeslot,
+      categories: sm.categories || [],
+      rates: sm.rates || [],
+      entries: sm.entries || [],
+      classified,  // for token highlighting in detail view only
+    };
     return { msg, parsed };
   });
 
-  populateDateFilterOptions(rawMessages);
+  populateDateFilterOptions(serverMessages);
 
-  // Apply client-side filters (lottery/timeslot/category/rate/search)
-  const filtered = parsedMessages.filter(({ msg, parsed }) => applyClientFilters(msg, parsed));
-
-  // Client-side pagination when filters are active
-  let displayItems;
-  let totalFiltered = filtered.length;
-  if (hasClientFilters) {
-    const start = currentPage * PAGE_SIZE;
-    displayItems = filtered.slice(start, start + PAGE_SIZE);
-  } else {
-    displayItems = filtered;
-  }
-
-  allMessagesCache = displayItems;
+  allMessagesCache = parsedMessages;
   allLoadedForCharts = parsedMessages;
 
-  renderTable(displayItems);
-  renderCharts(hasClientFilters ? filtered : parsedMessages);
+  renderTable(parsedMessages);
+  renderCharts(parsedMessages);
 
-  if (hasClientFilters) {
-    const totalPages = Math.ceil(totalFiltered / PAGE_SIZE) || 1;
-    document.getElementById("prev-btn").disabled = currentPage === 0;
-    document.getElementById("next-btn").disabled = currentPage >= totalPages - 1;
-    document.getElementById("page-info").textContent = `Page ${currentPage + 1} of ${totalPages}`;
-    document.getElementById("table-count-note").textContent =
-      `${totalFiltered} messages match filters`;
-  } else {
-    document.getElementById("prev-btn").disabled = currentPage === 0;
-    document.getElementById("next-btn").disabled = rawMessages.length < PAGE_SIZE;
-    document.getElementById("page-info").textContent = `Page ${currentPage + 1}`;
-    document.getElementById("table-count-note").textContent =
-      `${rawMessages.length} messages loaded`;
-  }
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE) || 1;
+  document.getElementById("prev-btn").disabled = currentPage === 0;
+  document.getElementById("next-btn").disabled = currentPage >= totalPages - 1;
+  document.getElementById("page-info").textContent = `Page ${currentPage + 1} of ${totalPages}`;
+  document.getElementById("table-count-note").textContent =
+    `${totalCount} messages with parsed entries`;
 
   renderBreadcrumbs();
-}
-
-function applyClientFilters(msg, parsed) {
-  if (filters.lottery && parsed.lottery !== filters.lottery) return false;
-  if (filters.timeslot && parsed.timeslot !== filters.timeslot) return false;
-  if (filters.category && !(parsed.categories || []).includes(filters.category)) return false;
-  if (filters.rate && !(parsed.rates || []).includes(Number(filters.rate))) return false;
-  if (filters.q) {
-    const hay = (msg.text || "").toLowerCase();
-    if (!hay.includes(filters.q.toLowerCase())) return false;
-  }
-  return true;
 }
 
 function populateDateFilterOptions(messages) {
@@ -932,8 +915,9 @@ function populateDateFilterOptions(messages) {
   const existing = new Set(Array.from(sel.options).map(o => o.value));
   const dates = new Set();
   for (const m of messages) {
-    if (m.whatsapp_timestamp) {
-      const d = new Date(m.whatsapp_timestamp * 1000);
+    const ts = m.whatsapp_timestamp;
+    if (ts) {
+      const d = new Date(ts * 1000);
       const iso = d.toISOString().slice(0, 10);
       dates.add(iso);
     }
@@ -1625,197 +1609,12 @@ function findNearby(classified, idx, dir) {
   return null;
 }
 
-/* ---------------- Grouping ---------------- */
-
-function parseGroups(classified, meta) {
-  // Group tokens into bet "groups" — a group starts at a BETTING_NUMBER and
-  // accumulates trailing QTY/RATE modifiers, resetting on next BETTING_NUMBER,
-  // POSITION, or LOTTERY/TIMESLOT/RATE context change.
-  const groups = [];
-  let currentPosition = meta.bet_type || null;
-  let currentRate = null;
-
-  const meaningful = classified.filter(t => t.type !== "ws" && t.type !== "SEPARATOR");
-
-  let i = 0;
-  while (i < meaningful.length) {
-    const tok = meaningful[i];
-
-    if (tok.type === "POSITION") {
-      currentPosition = tok.raw.toUpperCase();
-      i++;
-      continue;
-    }
-
-    if (tok.type === "RATE") {
-      // look ahead for the numeric rate value
-      if (i + 1 < meaningful.length && meaningful[i + 1].type === "RATE" &&
-          /^\d+$/.test(meaningful[i + 1].raw)) {
-        currentRate = parseInt(meaningful[i + 1].raw, 10);
-        i += 2;
-        continue;
-      }
-      if (/^\d+$/.test(tok.raw)) {
-        currentRate = parseInt(tok.raw, 10);
-      }
-      i++;
-      continue;
-    }
-
-    if (tok.type === "BETTING_NUMBER") {
-      const group = {
-        number: tok.raw,
-        position: currentPosition,
-        rate: currentRate,
-        qty: 1
-      };
-
-      // Look ahead for an immediate QTY token
-      let j = i + 1;
-      if (j < meaningful.length && meaningful[j].type === "QTY" && /^\d+$/.test(meaningful[j].raw)) {
-        group.qty = parseInt(meaningful[j].raw, 10);
-        j++;
-      } else if (j < meaningful.length && meaningful[j].type === "QTY") {
-        // qty keyword without explicit trailing digit -> default handled elsewhere
-        j++;
-      }
-
-      groups.push(group);
-      i = j;
-      continue;
-    }
-
-    i++;
-  }
-
-  return groups;
-}
-
-/* ---------------- Entry derivation ---------------- */
-
-function getDefaultRateClient(numLen) {
-  const defaults = { 1: 12, 2: 12, 3: 60, 4: 100, 5: 650 };
-  return defaults[numLen] || 0;
-}
-
-function deriveEntries(groups) {
-  const entries = [];
-  for (const g of groups) {
-    // Apply default rate if none was explicitly set
-    if (g.rate == null) {
-      g.rate = getDefaultRateClient(g.number.length);
-    }
-    const category = deriveCategoryForGroup(g);
-    entries.push({
-      number: g.number,
-      position: g.position,
-      qty: g.qty || 1,
-      rate: g.rate,
-      category
-    });
-  }
-  return entries;
-}
-
-function deriveCategoryForGroup(g) {
-  const dlen = g.number.length;
-  const rate = g.rate;
-
-  if (dlen === 1) return "SINGLE";
-
-  if (dlen === 2) {
-    if (rate === 60) return "FULL";
-    if (rate === 30) return "HALF";
-    if (rate === 12) return "AB/BC/AC";
-    return "AB/BC/AC";
-  }
-
-  if (dlen === 3) {
-    if (rate === 10) return "3D10";
-    if (rate === 25) return "3D25";
-    if (rate === 30) return "3D_HALF";
-    return "3D_FULL";  // default 3-digit rate is Rs60
-  }
-
-  if (dlen === 4) {
-    if (rate === 20) return "4D20";
-    if (rate === 50) return "4D50";
-    if (rate === 100) return "4D100";
-    return "4D100";
-  }
-
-  if (dlen === 5) return "5D";
-
-  return null;
-}
-
-/* ---------------- Lottery / timeslot detection ---------------- */
-
-function detectLotteryFromGroup(groupName) {
-  if (!groupName) return null;
-  const gn = groupName.toLowerCase();
-  if (gn.includes("bala 494") || gn.includes("bala 678")) return "DEAR";
-  if (gn.includes("dear")) return "DEAR";
-  if (gn.includes("kerala")) return "KERALA";
-  if (gn.includes("goa")) return "GOA";
-  return null;
-}
-
-function detectLotteryFromText(text) {
-  if (!text) return null;
-  const t = text.toLowerCase();
-  if (/\b(dear|dr|deer|der|dl)\b/.test(t)) return "DEAR";
-  if (/\b(kerala|kerela|kl)\b/.test(t)) return "KERALA";
-  if (/\bgoa\b/.test(t)) return "GOA";
-  return null;
-}
-
-function detectTimeslot(text) {
-  if (!text) return null;
-  const t = text.toLowerCase();
-  const patterns = [
-    [/\b1\s*[.:]*\s*pm\b/, "1PM"], [/\bpm\s*1\b/, "1PM"], [/\bdr\s*1\b/, "1PM"], [/\bkl\s*1\b/, "1PM"],
-    [/\b3\s*[.:]*\s*pm\b/, "3PM"], [/\bpm\s*3\b/, "3PM"], [/\bdr\s*3\b/, "3PM"], [/\bkl\s*3\b/, "3PM"],
-    [/\b5\s*[.:]*\s*pm\b/, "5PM"], [/\bpm\s*5\b/, "5PM"],
-    [/\b6\s*[.:]*\s*pm\b/, "6PM"], [/\bpm\s*6\b/, "6PM"],
-    [/\b7\s*[.:]*\s*pm\b/, "7PM"], [/\bpm\s*7\b/, "7PM"],
-    [/\b8\s*[.:]*\s*pm\b/, "8PM"], [/\bpm\s*8\b/, "8PM"],
-    [/\b12\s*[.:]*\s*pm\b/, "12PM"], [/\bpm\s*12\b/, "12PM"]
-  ];
-  for (const [re, slot] of patterns) {
-    if (re.test(t)) return slot;
-  }
-  return null;
-}
-
-/* ---------------- Top-level message parse ---------------- */
-
-function parseMessage(msg) {
-  const rawText = msg.text || "";
-  const normalized = normalizeUnicode(rawText);
-
-  const lottery = detectLotteryFromGroup(msg.group_name) || detectLotteryFromText(normalized);
-  const timeslot = detectTimeslot(normalized);
-
-  const tokens = tokenize(normalized);
-  const classified = classifyWithContext(tokens);
-
-  const groups = parseGroups(classified, { bet_type: null });
-  const entries = deriveEntries(groups);
-
-  const categories = Array.from(new Set(entries.map(e => e.category).filter(Boolean)));
-  const rates = Array.from(new Set(entries.map(e => e.rate).filter(r => r != null)));
-
-  return {
-    lottery,
-    timeslot,
-    classified,
-    groups,
-    entries,
-    categories,
-    rates
-  };
-}
+/* ---------------- Client-side parser removed ---------------- */
+/* Grouping, entry derivation, lottery/timeslot detection, and parseMessage
+   functions have been removed. The dashboard now uses server-parsed data
+   from /api/parsed/messages exclusively. Only the tokenizer (normalizeUnicode,
+   tokenize, classifyWithContext, splitCompoundToken, findNearby, classifyTokenBasic)
+   is kept for token highlighting in the detail panel. */
 </script>
 </body>
 </html>
