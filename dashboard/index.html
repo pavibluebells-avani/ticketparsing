@@ -1693,9 +1693,18 @@ function parseGroups(classified, meta) {
 
 /* ---------------- Entry derivation ---------------- */
 
+function getDefaultRateClient(numLen) {
+  const defaults = { 1: 12, 2: 12, 3: 60, 4: 100, 5: 650 };
+  return defaults[numLen] || 0;
+}
+
 function deriveEntries(groups) {
   const entries = [];
   for (const g of groups) {
+    // Apply default rate if none was explicitly set
+    if (g.rate == null) {
+      g.rate = getDefaultRateClient(g.number.length);
+    }
     const category = deriveCategoryForGroup(g);
     entries.push({
       number: g.number,
