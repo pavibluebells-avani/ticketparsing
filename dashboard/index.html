@@ -559,6 +559,7 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
   overflow: hidden;
   margin-bottom: 18px;
 }
+.report-card.collapsed .report-body { display: none; }
 .report-header {
   padding: 10px 16px;
   font-weight: 700;
@@ -566,9 +567,36 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
   display: flex;
   justify-content: space-between;
   align-items: center;
+  cursor: pointer;
+  user-select: none;
 }
 .report-header .rh-left { display: flex; gap: 20px; align-items: center; }
-.report-header .rh-right { font-size: 13px; }
+.report-header .rh-left .collapse-arrow { transition: transform 0.2s; display: inline-block; }
+.report-card.collapsed .collapse-arrow { transform: rotate(-90deg); }
+.report-header .rh-right { font-size: 13px; display: flex; gap: 8px; align-items: center; }
+.report-export-btn {
+  background: rgba(0,0,0,0.12);
+  border: none;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.report-export-btn:hover { background: rgba(0,0,0,0.22); }
+.opening-balance-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 16px;
+  background: rgba(0,0,0,0.03);
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+  font-size: 13px; font-weight: 600;
+}
+.opening-balance-row input {
+  width: 100px; text-align: right;
+  border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 8px;
+  font-size: 13px; font-family: inherit;
+}
 .report-table {
   width: 100%;
   border-collapse: collapse;
@@ -833,7 +861,15 @@ table th.col-hidden, table td.col-hidden { display: none; }
   <div class="table-section" id="booking-report-section">
     <div class="table-section-header">
       <h3>Booking Report</h3>
-      <button onclick="generateReport()" style="background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:13px;cursor:pointer">Generate</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="report-lottery-filter" onchange="generateReport()" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px">
+          <option value="">All Lotteries</option>
+          <option value="DEAR">DEAR</option>
+          <option value="KERALA">KERALA</option>
+          <option value="GOA">GOA</option>
+        </select>
+        <button onclick="generateReport()" style="background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:13px;cursor:pointer">Generate</button>
+      </div>
     </div>
     <div id="booking-report-container"></div>
   </div>
@@ -1720,53 +1756,56 @@ async function generateReport() {
   const container = document.getElementById("booking-report-container");
   container.innerHTML = '<div class="empty" style="padding:20px">Loading report…</div>';
 
-  // Use current dashboard filters
-  const lottery = filters.lottery || null;
-  const timeslot = filters.timeslot || null;
-  const date = filters.date || null;
+  // Report lottery filter (separate from main filters)
+  const reportLottery = document.getElementById("report-lottery-filter").value || null;
+
+  // Always use current date
+  const date = new Date().toISOString().slice(0, 10);
+
+  // Use main filter for group if set
   const group = filters.group || null;
 
-  // Fetch booking data — if no group, fetch all groups separately
   let groups = [];
   if (group) {
     groups = [group];
   } else {
-    // Get distinct groups from the group dropdown
     const sel = document.getElementById("f-group");
     groups = Array.from(sel.options).filter(o => o.value).map(o => o.value);
   }
 
   if (groups.length === 0) {
-    container.innerHTML = '<div class="empty" style="padding:20px">Select filters and click Generate. At least one group must exist.</div>';
+    container.innerHTML = '<div class="empty" style="padding:20px">No groups available. Load messages first.</div>';
     return;
   }
 
-  // Determine which timeslots to report on
-  let timeslots = timeslot ? [timeslot] : ["1PM","3PM","5PM","6PM","7PM","8PM","12PM"];
+  // Determine timeslots based on lottery filter
+  let timeslots;
+  if (reportLottery && LOTTERY_TIMESLOTS[reportLottery]) {
+    timeslots = LOTTERY_TIMESLOTS[reportLottery];
+  } else {
+    timeslots = ALL_TIMESLOTS;
+  }
 
   let html = "";
   for (const grp of groups) {
     for (const ts of timeslots) {
-      let url = `${API_BASE}/api/report/booking?timeslot=${ts}&group=${encodeURIComponent(grp)}`;
-      if (lottery) url += `&lottery=${encodeURIComponent(lottery)}`;
-      if (date) url += `&date=${date}`;
+      let url = `${API_BASE}/api/report/booking?timeslot=${ts}&group=${encodeURIComponent(grp)}&date=${date}`;
+      const lot = reportLottery || inferLotteryFromTimeslot(ts);
+      if (reportLottery) url += `&lottery=${encodeURIComponent(reportLottery)}`;
 
       const data = await safeFetchJson(url);
       if (!data || !data.rows || data.rows.length === 0) continue;
 
-      const lotteryType = lottery || inferLotteryFromTimeslot(ts);
-      html += buildReportCard(data, lotteryType, ts, grp, date);
+      html += buildReportCard(data, lot, ts, grp, date);
     }
   }
 
   if (!html) {
-    container.innerHTML = '<div class="empty" style="padding:20px">No booking data found for the selected filters.</div>';
+    container.innerHTML = '<div class="empty" style="padding:20px">No booking data for today.</div>';
     return;
   }
 
   container.innerHTML = html;
-
-  // Also load message counts
   loadMessageCounts();
 }
 
@@ -1784,15 +1823,12 @@ function buildReportCard(data, lottery, timeslot, groupJid, date) {
   // Map server rows to report categories
   const serverRows = data.rows || [];
   const catData = REPORT_ROWS.map((cat, ci) => {
-    // Find matching server rows
     let booking = 0, total = 0;
     for (const sr of serverRows) {
       if (sr.rate !== cat.rate) continue;
       if (cat.matchTypes) {
         if (cat.matchTypes.includes(sr.bet_type)) { booking += sr.booking; total += sr.total; }
       } else {
-        // No type restriction — all entries at this rate
-        // But exclude rows already matched by type-specific categories at same rate
         const typeSpecific = REPORT_ROWS.find(r => r.rate === cat.rate && r.matchTypes);
         if (typeSpecific && typeSpecific.matchTypes.includes(sr.bet_type)) continue;
         booking += sr.booking; total += sr.total;
@@ -1804,88 +1840,89 @@ function buildReportCard(data, lottery, timeslot, groupJid, date) {
   const grandBooking = catData.reduce((s, c) => s + c.booking, 0);
   const grandTotal = catData.reduce((s, c) => s + c.total, 0);
 
-  let rows = catData.map(c =>
+  // Only show rows with booking > 0
+  let rows = catData.filter(c => c.booking > 0).map(c =>
     `<tr>
       <td>${c.label}</td>
-      <td>${c.booking || ""}</td>
+      <td>${c.booking}</td>
       <td>${c.rate}</td>
-      <td>${c.total || ""}</td>
-      <td><input class="price-input" type="number" value="" placeholder="0"
-           oninput="updateBalance('${cardId}', ${c.idx}, this.value)"></td>
-      <td class="bal-cell" id="${cardId}-bal-${c.idx}">${c.total || 0}</td>
+      <td>${c.total}</td>
     </tr>`
   ).join("");
 
   return `<div class="report-card ${theme}" id="${cardId}">
-    <div class="report-header">
+    <div class="report-header" onclick="toggleReportCard('${cardId}')">
       <div class="rh-left">
+        <span class="collapse-arrow">▼</span>
+        <span>${lottery || "—"}</span>
         <span>${timeslot}</span>
         <span>${dateStr}</span>
       </div>
       <div class="rh-right">
-        <span>${lottery || "—"}</span> · <span>${escapeHtml(groupName)}</span>
+        <span>${escapeHtml(groupName)}</span>
+        <button class="report-export-btn" onclick="event.stopPropagation();exportReportCard('${cardId}')">Export JPG</button>
       </div>
     </div>
-    <table class="report-table">
-      <thead><tr>
-        <th></th><th>Booking</th><th>Rate</th><th>Total</th><th>Price</th><th>Balance</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-      <tfoot><tr>
-        <td></td>
-        <td>${grandBooking}</td>
-        <td></td>
-        <td>${grandTotal}</td>
-        <td><input class="price-input" type="number" value="" placeholder="0"
-             oninput="updateGrandBalance('${cardId}', this.value)" style="font-weight:700"></td>
-        <td class="bal-cell" id="${cardId}-bal-grand" style="font-weight:700">${grandTotal}</td>
-      </tr></tfoot>
-    </table>
+    <div class="report-body">
+      <div class="opening-balance-row">
+        <label>Opening Balance:</label>
+        <input type="number" value="" placeholder="0" oninput="recalcCardBalance('${cardId}', ${grandTotal})">
+        <span style="margin-left:auto;font-size:14px">Net Balance: <strong id="${cardId}-net-bal">${grandTotal}</strong></span>
+      </div>
+      <table class="report-table">
+        <thead><tr>
+          <th></th><th>Booking</th><th>Rate</th><th>Total</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr>
+          <td>Grand Total</td>
+          <td>${grandBooking}</td>
+          <td></td>
+          <td>${grandTotal}</td>
+        </tr></tfoot>
+      </table>
+    </div>
   </div>`;
 }
 
-// Store totals for balance calculation
-const reportTotals = {};
-
-function updateBalance(cardId, rowIdx, priceStr) {
-  const card = document.getElementById(cardId);
-  if (!card) return;
-  const rows = card.querySelectorAll("tbody tr");
-  const row = rows[rowIdx];
-  if (!row) return;
-  const totalCell = row.querySelectorAll("td")[3];
-  const total = parseFloat(totalCell.textContent) || 0;
-  const price = parseFloat(priceStr) || 0;
-  document.getElementById(`${cardId}-bal-${rowIdx}`).textContent = total - price;
-
-  // Recalculate grand balance
-  recalcGrandBalance(cardId);
+function toggleReportCard(cardId) {
+  document.getElementById(cardId)?.classList.toggle("collapsed");
 }
 
-function recalcGrandBalance(cardId) {
+function recalcCardBalance(cardId, grandTotal) {
   const card = document.getElementById(cardId);
   if (!card) return;
-  let totalSum = 0, priceSum = 0;
-  card.querySelectorAll("tbody tr").forEach(row => {
-    const cells = row.querySelectorAll("td");
-    totalSum += parseFloat(cells[3].textContent) || 0;
-    const input = cells[4].querySelector("input");
-    priceSum += parseFloat(input?.value) || 0;
-  });
-  document.getElementById(`${cardId}-bal-grand`).textContent = totalSum - priceSum;
-  // Clear grand price input since individual prices changed
-  const grandInput = card.querySelector("tfoot input");
-  if (grandInput) grandInput.value = "";
+  const openBal = parseFloat(card.querySelector(".opening-balance-row input")?.value) || 0;
+  document.getElementById(`${cardId}-net-bal`).textContent = openBal - grandTotal;
 }
 
-function updateGrandBalance(cardId, priceStr) {
+async function exportReportCard(cardId) {
   const card = document.getElementById(cardId);
   if (!card) return;
-  // Get grand total from tfoot
-  const tfootCells = card.querySelectorAll("tfoot td");
-  const grandTotal = parseFloat(tfootCells[3].textContent) || 0;
-  const price = parseFloat(priceStr) || 0;
-  document.getElementById(`${cardId}-bal-grand`).textContent = grandTotal - price;
+
+  // Ensure html2canvas is loaded
+  if (!window.html2canvas) {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+    document.head.appendChild(s);
+    await new Promise((res, rej) => { s.onload = res; s.onerror = rej; });
+  }
+
+  // Expand card if collapsed
+  const wasCollapsed = card.classList.contains("collapsed");
+  if (wasCollapsed) card.classList.remove("collapsed");
+
+  try {
+    const canvas = await html2canvas(card, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+    const link = document.createElement("a");
+    link.download = `${cardId}_${new Date().toISOString().slice(0,10)}.jpg`;
+    link.href = canvas.toDataURL("image/jpeg", 0.95);
+    link.click();
+  } catch (err) {
+    alert("Export failed: " + err.message);
+  }
+
+  if (wasCollapsed) card.classList.add("collapsed");
 }
 
 async function loadMessageCounts() {
