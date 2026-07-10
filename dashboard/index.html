@@ -521,6 +521,8 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
 .yaml-num { color: #fab387; }
 .yaml-dash { color: #f38ba8; }
 .yaml-comment { color: #6c7086; }
+.yaml-section { color: #f9e2af; font-weight: 600; }
+.yaml-annotation { color: #cba6f7; font-style: italic; }
 
 /* ---------------- Footer / misc ---------------- */
 
@@ -1278,23 +1280,85 @@ const TOKEN_COLOR_CLASSES = {
 };
 
 function renderYamlHtml(msg, parsed) {
-  const lines = [];
-  lines.push(`<span class="yaml-comment"># message_id: ${escapeHtml(msg.message_id || "")}</span>`);
-  lines.push(`<span class="yaml-key">group:</span> <span class="yaml-str">"${escapeHtml(msg.group_name || msg.group_jid || "")}"</span>`);
-  lines.push(`<span class="yaml-key">sender:</span> <span class="yaml-str">"${escapeHtml(msg.push_name || msg.sender || "")}"</span>`);
-  lines.push(`<span class="yaml-key">lottery:</span> <span class="yaml-str">${parsed.lottery ? escapeHtml(parsed.lottery) : "null"}</span>`);
-  lines.push(`<span class="yaml-key">timeslot:</span> <span class="yaml-str">${parsed.timeslot ? escapeHtml(parsed.timeslot) : "null"}</span>`);
-  lines.push(`<span class="yaml-key">entries:</span>`);
+  const Y = (k, v, indent) => `${indent}<span class="yaml-key">${k}:</span> <span class="yaml-str">${v}</span>`;
+  const YN = (k, v, indent) => `${indent}<span class="yaml-key">${k}:</span> <span class="yaml-num">${v}</span>`;
+  const YC = (text, indent) => `${indent}<span class="yaml-comment">${text}</span>`;
+  const YS = (text, indent) => `${indent}<span class="yaml-section">${text}</span>`;
 
-  if (!parsed.entries || parsed.entries.length === 0) {
-    lines.push(`  <span class="yaml-comment"># no entries extracted</span>`);
+  const lines = [];
+
+  // Header
+  lines.push(YC(`# message_id: ${escapeHtml(msg.message_id || "")}`, ''));
+  lines.push('');
+
+  // Tokens section
+  lines.push(YS('tokens:', ''));
+  if (parsed.classified && parsed.classified.length > 0) {
+    const meaningful = parsed.classified.filter(t => t.type !== 'ws' && t.type !== 'SEPARATOR');
+    for (const tok of meaningful) {
+      lines.push(`  <span class="yaml-dash">-</span> <span class="yaml-key">value:</span> <span class="yaml-str">"${escapeHtml(tok.raw)}"</span>`);
+      lines.push(`    <span class="yaml-key">type:</span> <span class="yaml-annotation">${escapeHtml(tok.type)}</span>`);
+    }
   } else {
+    lines.push(YC('  # no tokens', ''));
+  }
+  lines.push('');
+
+  // Groups section — group entries by position
+  lines.push(YS('groups:', ''));
+  if (parsed.entries && parsed.entries.length > 0) {
+    const groupMap = {};
+    for (const e of parsed.entries) {
+      const key = `${e.position || 'NONE'}|${e.rate || 0}|${e.category || 'UNKNOWN'}`;
+      if (!groupMap[key]) groupMap[key] = { position: e.position, rate: e.rate, category: e.category, numbers: [], totalQty: 0 };
+      groupMap[key].numbers.push(e.number);
+      groupMap[key].totalQty += (e.qty || 1);
+    }
+    for (const g of Object.values(groupMap)) {
+      const totalCost = (g.rate || 0) * g.totalQty;
+      lines.push(`  <span class="yaml-dash">-</span> <span class="yaml-key">category:</span> <span class="yaml-str">${escapeHtml(g.category || 'UNKNOWN')}</span>`);
+      lines.push(`    <span class="yaml-key">position:</span> <span class="yaml-str">${g.position || "null"}</span>`);
+      lines.push(`    <span class="yaml-key">numbers:</span> <span class="yaml-num">[${g.numbers.map(n => escapeHtml(n)).join(', ')}]</span>`);
+      lines.push(`    <span class="yaml-key">qty_per_number:</span> <span class="yaml-num">${Math.round(g.totalQty / g.numbers.length)}</span>`);
+      lines.push(`    <span class="yaml-key">rate:</span> <span class="yaml-num">${g.rate != null ? g.rate : "null"}</span>`);
+      lines.push(`    <span class="yaml-key">total_tickets:</span> <span class="yaml-num">${g.totalQty}</span>`);
+      lines.push(`    <span class="yaml-key">total_cost:</span> <span class="yaml-num">${totalCost}</span>`);
+    }
+  } else {
+    lines.push(YC('  # no groups', ''));
+  }
+  lines.push('');
+
+  // Resolved section
+  lines.push(YS('resolved:', ''));
+  lines.push(YC('  # parser output', ''));
+  lines.push(Y('  lottery', parsed.lottery || "null", ''));
+  lines.push(Y('  timeslot', parsed.timeslot || "null", ''));
+  const cats = parsed.categories && parsed.categories.length ? parsed.categories.join(', ') : 'null';
+  lines.push(Y('  category', cats, ''));
+  const rates = parsed.rates && parsed.rates.length ? parsed.rates.join(', ') : 'null';
+  lines.push(Y('  rate', rates, ''));
+  lines.push('');
+
+  // Entries section
+  const totalEntries = parsed.entries ? parsed.entries.length : 0;
+  lines.push(YS(`entries:`, ''));
+  lines.push(YC(`  # ${totalEntries} total`, ''));
+
+  if (totalEntries > 0) {
     for (const entry of parsed.entries) {
-      lines.push(`  <span class="yaml-dash">-</span> <span class="yaml-key">number:</span> <span class="yaml-num">${escapeHtml(entry.number)}</span>`);
-      lines.push(`    <span class="yaml-key">position:</span> <span class="yaml-str">${entry.position ? escapeHtml(entry.position) : "null"}</span>`);
-      lines.push(`    <span class="yaml-key">qty:</span> <span class="yaml-num">${entry.qty}</span>`);
+      const dlen = entry.number ? entry.number.length : 0;
+      const family = dlen === 1 ? '1D' : dlen === 2 ? '2D' : dlen === 3 ? '3D' : dlen === 4 ? '4D' : dlen === 5 ? '5D' : 'UNK';
+      const playMode = entry.isBox ? 'BOX' : 'STRAIGHT';
+
+      lines.push(`  <span class="yaml-dash">-</span> <span class="yaml-key">number:</span> <span class="yaml-num">"${escapeHtml(entry.number)}"</span>`);
+      lines.push(`    <span class="yaml-key">digit_count:</span> <span class="yaml-num">${dlen}</span>`);
+      lines.push(`    <span class="yaml-key">family:</span> <span class="yaml-str">${family}</span>`);
+      lines.push(`    <span class="yaml-key">position:</span> <span class="yaml-str">${entry.position || "null"}</span>`);
+      lines.push(`    <span class="yaml-key">play_mode:</span> <span class="yaml-annotation">${playMode}</span>`);
+      lines.push(`    <span class="yaml-key">qty:</span> <span class="yaml-num">${entry.qty || 1}</span>`);
       lines.push(`    <span class="yaml-key">rate:</span> <span class="yaml-num">${entry.rate != null ? entry.rate : "null"}</span>`);
-      lines.push(`    <span class="yaml-key">category:</span> <span class="yaml-str">${entry.category ? escapeHtml(entry.category) : "null"}</span>`);
+      lines.push(`    <span class="yaml-key">category:</span> <span class="yaml-str">${entry.category || "null"}</span>`);
     }
   }
 
