@@ -862,6 +862,7 @@ table th.col-hidden, table td.col-hidden { display: none; }
     <div class="table-section-header">
       <h3>Booking Report</h3>
       <div style="display:flex;gap:8px;align-items:center">
+        <input type="date" id="report-date-picker" onchange="generateReport()" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px;font-family:inherit">
         <select id="report-lottery-filter" onchange="generateReport()" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:13px">
           <option value="">All Lotteries</option>
           <option value="DEAR">DEAR</option>
@@ -1154,6 +1155,7 @@ async function loadMessages() {
   });
 
   populateDateFilterOptions(serverMessages);
+  initReportDatePicker();
 
   allMessagesCache = parsedMessages;
   allLoadedForCharts = parsedMessages;
@@ -1752,15 +1754,26 @@ function reportThemeClass(lottery) {
   return "report-theme-default";
 }
 
+// Track dates with data for the calendar
+let reportAvailableDates = new Set();
+
+function initReportDatePicker() {
+  const picker = document.getElementById("report-date-picker");
+  // Default to today
+  picker.value = new Date().toISOString().slice(0, 10);
+  // Collect available dates from the main date filter dropdown
+  const sel = document.getElementById("f-date");
+  reportAvailableDates = new Set(Array.from(sel.options).map(o => o.value).filter(Boolean));
+}
+
 async function generateReport() {
   const container = document.getElementById("booking-report-container");
   container.innerHTML = '<div class="empty" style="padding:20px">Loading report…</div>';
 
-  // Report lottery filter (separate from main filters)
   const reportLottery = document.getElementById("report-lottery-filter").value || null;
 
-  // Always use current date
-  const date = new Date().toISOString().slice(0, 10);
+  const picker = document.getElementById("report-date-picker");
+  const date = picker.value || new Date().toISOString().slice(0, 10);
 
   // Use main filter for group if set
   const group = filters.group || null;
