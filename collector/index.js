@@ -1,6 +1,7 @@
 // =====================================================
 // TICKET COLLECTOR — Baileys WhatsApp Listener
-// Captures messages and POSTs to Cloudflare Worker
+// Captures messages and stores locally as JSONL files
+// Python parser handles parsing + upload to cloud DB
 // =====================================================
 
 process.setMaxListeners(20)
@@ -18,8 +19,6 @@ const path = require("path")
 const yaml = require("js-yaml")
 const qrcode = require("qrcode-terminal")
 
-const MessagePoster = require("./poster")
-
 // =====================================================
 // CONFIG
 // =====================================================
@@ -30,7 +29,6 @@ const GROUP_CACHE_FILE = "./group_cache.json"
 const DATA_DIR = "./data"
 const RAW_DIR = "./data/raw"
 const STATE_DIR = "./data/state"
-const SYNC_STATE_FILE = `${STATE_DIR}/sync_state.json`
 const MESSAGE_INDEX_FILE = `${STATE_DIR}/message_index.json`
 
 // =====================================================
@@ -45,15 +43,6 @@ function ensureDirectories() {
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true })
         }
-    }
-
-    if (!fs.existsSync(SYNC_STATE_FILE)) {
-        fs.writeFileSync(SYNC_STATE_FILE, JSON.stringify({
-            last_history_sync: null,
-            last_live_message: null,
-            last_message_id: null,
-            version: "3.0"
-        }, null, 2))
     }
 
     if (!fs.existsSync(MESSAGE_INDEX_FILE)) {
@@ -99,16 +88,6 @@ function saveGroupCache(cache) {
     atomicJsonSave(GROUP_CACHE_FILE, cache)
 }
 
-function loadSyncState() {
-    try {
-        return JSON.parse(fs.readFileSync(SYNC_STATE_FILE, "utf8"))
-    } catch { return {} }
-}
-
-function saveSyncState(state) {
-    atomicJsonSave(SYNC_STATE_FILE, state)
-}
-
 function loadMessageIndex() {
     try {
         return JSON.parse(fs.readFileSync(MESSAGE_INDEX_FILE, "utf8"))
@@ -120,7 +99,7 @@ function saveMessageIndex(index) {
 }
 
 // =====================================================
-// DAILY MESSAGE FILE (local backup)
+// DAILY MESSAGE FILE (local JSONL storage)
 // =====================================================
 
 function getMessageFile(whatsappTimestamp) {
@@ -180,30 +159,6 @@ let _groupCache = null
 let _messageIndex = null
 let _messageIndexDirty = false
 
-// Server-side ignore lists (polled periodically)
-let _ignoreCollect = new Set()  // groups to drop entirely
-let _ignoreParse = new Set()    // groups to store but skip parsing (handled server-side, collector just knows)
-
-async function pollIgnoredGroups() {
-    try {
-        const config = getConfig()
-        const baseUrl = config.worker_url.replace(/\/api\/messages$/, "")
-        const resp = await fetch(`${baseUrl}/api/admin/ignored-groups`, {
-            headers: { "x-api-key": config.api_key }
-        })
-        if (resp.ok) {
-            const data = await resp.json()
-            _ignoreCollect = new Set(data.skip_collect || [])
-            _ignoreParse = new Set(data.skip_parse || [])
-            if (_ignoreCollect.size || _ignoreParse.size) {
-                console.log(`[IGNORE] collect: ${_ignoreCollect.size} groups, parse-only: ${_ignoreParse.size} groups`)
-            }
-        }
-    } catch (err) {
-        console.log("[IGNORE] Failed to poll ignored groups:", err.message)
-    }
-}
-
 function getConfig() {
     if (!_config) _config = loadConfig()
     return _config
@@ -239,15 +194,12 @@ function pruneMessageIndex() {
     }
 }
 
-async function processMessage(sock, msg, poster, historical = false) {
+async function processMessage(sock, msg, historical = false) {
 
     try {
 
         const remoteJid = msg.key?.remoteJid
         if (!remoteJid || !remoteJid.endsWith("@g.us")) return
-
-        // Skip groups marked as ignore_collect on server
-        if (_ignoreCollect.has(remoteJid)) return
 
         const config = getConfig()
         const groupCache = getGroupCache()
@@ -289,7 +241,7 @@ async function processMessage(sock, msg, poster, historical = false) {
         const text = extractMessageText(msg)
         const normalizedTimestamp = normalizeTimestamp(msg.messageTimestamp)
 
-        // Build record (no raw msg — saves memory and disk)
+        // Build record
         const record = {
             ingest_sequence: Date.now(),
             historical,
@@ -302,22 +254,9 @@ async function processMessage(sock, msg, poster, historical = false) {
             text
         }
 
-        // Save locally (backup)
-        appendMessage(record)
-
-        // POST to Cloudflare Worker
-        if (poster && text && text.trim() !== "") {
-
-            poster.enqueue({
-                message_id: messageId,
-                whatsapp_timestamp: normalizedTimestamp,
-                group_jid: remoteJid,
-                group_name: record.group_name,
-                sender: record.sender,
-                push_name: record.push_name,
-                text: text,
-                historical
-            })
+        // Save locally as JSONL
+        if (text && text.trim() !== "") {
+            appendMessage(record)
         }
 
         // Update dedup index (in-memory, flushed periodically)
@@ -335,6 +274,37 @@ async function processMessage(sock, msg, poster, historical = false) {
 }
 
 // =====================================================
+// HEARTBEAT — lightweight ping to Worker for dashboard status
+// =====================================================
+
+async function sendHeartbeat(status = "online") {
+    try {
+        const config = getConfig()
+        const baseUrl = config.worker_url.replace(/\/api\/messages$/, "")
+        const body = JSON.stringify({
+            status,
+            timestamp: Date.now(),
+            queue_size: 0
+        })
+
+        const resp = await fetch(`${baseUrl}/api/heartbeat`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-api-key": config.api_key
+            },
+            body
+        })
+
+        if (!resp.ok) {
+            console.log(`[HEARTBEAT] Worker returned ${resp.status}`)
+        }
+    } catch (err) {
+        console.log(`[HEARTBEAT] Failed: ${err.message}`)
+    }
+}
+
+// =====================================================
 // MAIN
 // =====================================================
 
@@ -344,33 +314,26 @@ async function start() {
 
     const config = getConfig()
 
-    // Initialize poster
-    const poster = new MessagePoster(
-        config.worker_url,
-        config.api_key
-    )
+    console.log("=== Ticket Collector (Local-only mode) ===")
+    console.log(`Storing messages in: ${path.resolve(RAW_DIR)}`)
 
-    // Poll ignored groups on startup
-    await pollIgnoredGroups()
-
-    // Heartbeat (single interval, never stacked)
+    // Heartbeat to Worker (so dashboard shows collector status)
     const heartbeatMs = config.heartbeat_interval || 300000
-    setInterval(() => {
-        poster.sendHeartbeat("online")
-    }, heartbeatMs)
+    sendHeartbeat("online")
+    setInterval(() => sendHeartbeat("online"), heartbeatMs)
 
     // Graceful shutdown (register ONCE, outside connect loop)
     process.once("SIGINT", async () => {
         console.log("\nShutting down...")
         if (_messageIndex && _messageIndexDirty) saveMessageIndex(_messageIndex)
-        await poster.stop()
+        sendHeartbeat("disconnected")
         process.exit(0)
     })
 
     process.once("SIGTERM", async () => {
         console.log("\nStopping...")
         if (_messageIndex && _messageIndexDirty) saveMessageIndex(_messageIndex)
-        await poster.stop()
+        sendHeartbeat("disconnected")
         process.exit(0)
     })
 
@@ -389,7 +352,7 @@ async function start() {
             printQRInTerminal: false,
             fireInitQueries: true,
             downloadHistory: true,
-            syncFullHistory: false, // only on first connect; history already synced
+            syncFullHistory: false,
             browser: ["Windows", "Desktop", "10.0"]
         })
 
@@ -413,7 +376,6 @@ async function start() {
                 console.log("================================\n")
                 console.log("History hydration started...")
                 console.log("Live ingestion active...\n")
-                poster.sendHeartbeat("online")
                 pruneMessageIndex()
             }
 
@@ -422,12 +384,10 @@ async function start() {
                 const statusCode = lastDisconnect?.error?.output?.statusCode
 
                 console.log(`\nConnection closed: ${statusCode}`)
-                poster.sendHeartbeat("disconnected")
 
                 if (statusCode === DisconnectReason.loggedOut) {
                     console.log("Logged out from WhatsApp")
                     if (_messageIndex && _messageIndexDirty) saveMessageIndex(_messageIndex)
-                    await poster.stop()
                     process.exit(1)
                 }
 
@@ -448,7 +408,7 @@ async function start() {
             console.log("================================\n")
 
             for (const msg of messages) {
-                await processMessage(sock, msg, poster, true)
+                await processMessage(sock, msg, true)
             }
 
             console.log("\nHistory sync completed.\n")
@@ -458,7 +418,7 @@ async function start() {
         sock.ev.on("messages.upsert", async ({ messages }) => {
 
             for (const msg of messages) {
-                await processMessage(sock, msg, poster, false)
+                await processMessage(sock, msg, false)
             }
         })
 

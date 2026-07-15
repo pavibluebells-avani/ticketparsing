@@ -1396,7 +1396,7 @@ def load_jsonl_files(input_dir: str) -> Dict[str, List[dict]]:
     return messages_by_file
 
 # ============================================================
-# EXCEL REPORT GENERATOR
+# EXCEL REPORT GENERATOR (requires pandas + openpyxl)
 # ============================================================
 
 # Style constants

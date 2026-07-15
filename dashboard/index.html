@@ -551,6 +551,39 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
 .admin-mapped-goa { color: #1f8a4c; }
 .admin-mapped-auto { color: var(--muted); font-style: italic; }
 
+.reparse-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #fff8f0;
+  border: 1px solid #f0d9b5;
+  border-radius: 8px;
+}
+.reparse-bar .reparse-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  background: #c0392b;
+  color: #fff;
+}
+.reparse-bar .reparse-btn:hover { background: #a93226; }
+.reparse-bar .reparse-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.reparse-bar .reparse-info {
+  font-size: 12px;
+  color: var(--muted);
+  flex: 1;
+}
+.reparse-bar .reparse-status {
+  font-size: 13px;
+  font-weight: 600;
+}
+
 /* ---------------- Booking Report ---------------- */
 
 .report-card {
@@ -954,6 +987,16 @@ table th.col-hidden, table td.col-hidden { display: none; }
           </tbody>
         </table>
       </div>
+
+      <!-- Reparse bar -->
+      <div class="reparse-bar">
+        <button class="reparse-btn" id="reparse-btn" onclick="triggerReparse()">⟳ Reparse All</button>
+        <span class="reparse-info">
+          Deletes all parsed entries and re-parses every message from scratch. Use after parser logic changes.
+        </span>
+        <span class="reparse-status" id="reparse-status"></span>
+      </div>
+
     </div>
   </div>
 
@@ -2229,6 +2272,46 @@ async function clearMapping(groupJid) {
   } else {
     alert("Failed to clear mapping");
   }
+}
+
+/* =========================================================
+   REPARSE ALL
+   ========================================================= */
+
+async function triggerReparse() {
+  if (!confirm("This will DELETE all parsed entries and re-parse every message from scratch.\n\nThis cannot be undone. Continue?")) return;
+
+  const btn = document.getElementById("reparse-btn");
+  const status = document.getElementById("reparse-status");
+  btn.disabled = true;
+  btn.textContent = "⟳ Reparsing…";
+  status.textContent = "Working…";
+  status.style.color = "var(--amber)";
+
+  try {
+    const resp = await fetch(`${API_BASE}/api/reparse`, {
+      method: "POST",
+      headers: { "x-api-key": API_KEY }
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      status.textContent = `Done — ${data.entries_deleted} old entries removed, ${data.messages_reparsed} messages reparsed, ${data.entries_inserted} new entries created`;
+      status.style.color = "var(--green)";
+      // Refresh the main table
+      loadMessages();
+    } else {
+      const err = await resp.json().catch(() => ({}));
+      status.textContent = `Error: ${err.error || resp.statusText}`;
+      status.style.color = "var(--red)";
+    }
+  } catch (e) {
+    status.textContent = `Network error: ${e.message}`;
+    status.style.color = "var(--red)";
+  }
+
+  btn.disabled = false;
+  btn.textContent = "⟳ Reparse All";
 }
 
 /* =========================================================

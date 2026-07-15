@@ -769,7 +769,87 @@ export default {
             }
 
             // =================================================
-            // POST /api/reparse — reparse messages missing entries
+            // POST /api/ingest-batch — receive pre-parsed data from Python
+            // Accepts: { messages: [...], entries: [...] }
+            // Inserts raw messages + parsed entries into D1
+            // =================================================
+
+            if (url.pathname === "/api/ingest-batch" && method === "POST") {
+
+                const apiKey = request.headers.get("x-api-key")
+                if (apiKey !== env.API_KEY) {
+                    return json({ error: "Unauthorized" }, 401, corsHeaders)
+                }
+
+                const payload = await request.json()
+                const rawMessages = payload.messages || []
+                const parsedEntries = payload.entries || []
+
+                let messagesInserted = 0
+                let entriesInserted = 0
+
+                // Insert raw messages
+                if (rawMessages.length > 0) {
+                    const msgStmts = rawMessages.map(msg =>
+                        env.DB.prepare(`
+                            INSERT OR IGNORE INTO messages
+                            (message_id, whatsapp_timestamp, group_jid, group_name, sender, push_name, text, historical)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        `).bind(
+                            msg.message_id,
+                            msg.whatsapp_timestamp,
+                            msg.group_jid,
+                            msg.group_name || null,
+                            msg.sender || null,
+                            msg.push_name || null,
+                            msg.text || null,
+                            msg.historical ? 1 : 0
+                        )
+                    )
+                    // D1 batch limit ~100
+                    for (let i = 0; i < msgStmts.length; i += 100) {
+                        const results = await env.DB.batch(msgStmts.slice(i, i + 100))
+                        for (const r of results) {
+                            messagesInserted += (r.meta?.changes || 0)
+                        }
+                    }
+                }
+
+                // Insert parsed entries
+                if (parsedEntries.length > 0) {
+                    const entryStmts = parsedEntries.map(e =>
+                        env.DB.prepare(`
+                            INSERT OR IGNORE INTO parsed_entries
+                            (message_id, whatsapp_timestamp, group_jid, group_name, sender, push_name,
+                             lottery_type, timeslot, bet_number, bet_type, quantity, rate, price, raw_line)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        `).bind(
+                            e.message_id, e.whatsapp_timestamp, e.group_jid, e.group_name || null,
+                            e.sender || null, e.push_name || null,
+                            e.lottery_type || null, e.timeslot || null,
+                            e.bet_number, e.bet_type, e.quantity || 1, e.rate || 0,
+                            e.price || 0, e.raw_line || null
+                        )
+                    )
+                    for (let i = 0; i < entryStmts.length; i += 100) {
+                        const results = await env.DB.batch(entryStmts.slice(i, i + 100))
+                        for (const r of results) {
+                            entriesInserted += (r.meta?.changes || 0)
+                        }
+                    }
+                }
+
+                return json({
+                    ok: true,
+                    messages_received: rawMessages.length,
+                    messages_inserted: messagesInserted,
+                    entries_received: parsedEntries.length,
+                    entries_inserted: entriesInserted,
+                }, 200, corsHeaders)
+            }
+
+            // =================================================
+            // POST /api/reparse — reparse all messages (full wipe + rebuild)
             // =================================================
 
             if (url.pathname === "/api/reparse" && method === "POST") {
@@ -779,89 +859,115 @@ export default {
                     return json({ error: "Unauthorized" }, 401, corsHeaders)
                 }
 
-                const BATCH_SIZE = 100
+                // Step 1: Count existing entries before wipe
+                const beforeCount = await env.DB.prepare(
+                    "SELECT COUNT(*) as count FROM parsed_entries"
+                ).first()
 
-                // Find messages that have no corresponding parsed_entries rows yet.
-                // Note: messages that parse to zero entries (noise, or text with no
-                // recognizable betting numbers) will never gain a parsed_entries row,
-                // so they'll be re-evaluated (cheaply) on every /api/reparse call until
-                // the whole backlog is caught up. This is intentional — it keeps the
-                // schema simple (no extra "parsed_at" column needed for this pass).
-                const pending = await env.DB.prepare(`
-                    SELECT m.message_id, m.whatsapp_timestamp, m.group_jid, m.group_name,
-                           m.sender, m.push_name, m.text
-                    FROM messages m
-                    LEFT JOIN parsed_entries pe ON pe.message_id = m.message_id
-                    WHERE pe.message_id IS NULL AND m.text IS NOT NULL
-                    LIMIT ?
-                `).bind(BATCH_SIZE).all()
+                // Step 2: Delete ALL parsed entries
+                await env.DB.prepare("DELETE FROM parsed_entries").run()
 
-                let messagesParsed = 0
-                let entriesInserted = 0
-                let messagesSkippedNoise = 0
+                // Step 3: Reparse all messages in batches
+                const BATCH_SIZE = 200
+                let totalMessages = 0
+                let totalEntries = 0
+                let totalSkipped = 0
+                let offset = 0
+                let hasMore = true
 
-                for (const msg of pending.results) {
+                while (hasMore) {
+                    const batch = await env.DB.prepare(`
+                        SELECT m.message_id, m.whatsapp_timestamp, m.group_jid, m.group_name,
+                               m.sender, m.push_name, m.text
+                        FROM messages m
+                        WHERE m.text IS NOT NULL
+                        ORDER BY m.whatsapp_timestamp
+                        LIMIT ? OFFSET ?
+                    `).bind(BATCH_SIZE, offset).all()
 
-                    if (!msg.text || isNoise(msg.text)) {
-                        messagesSkippedNoise++
-                        continue
+                    if (!batch.results || batch.results.length === 0) {
+                        hasMore = false
+                        break
                     }
 
-                    try {
-                        const parsed = parseMessage(
-                            msg.text, msg.group_name, msg.group_jid,
-                            msg.message_id, msg.whatsapp_timestamp,
-                            msg.sender, msg.push_name
-                        )
-
-                        // Apply admin group-lottery override
+                    // Preload all group overrides for this batch
+                    const groupJids = [...new Set(batch.results.map(m => m.group_jid))]
+                    const overrides = {}
+                    for (const jid of groupJids) {
                         try {
-                            const override = await env.DB.prepare(
-                                "SELECT lottery_type FROM group_config WHERE group_jid = ?"
-                            ).bind(msg.group_jid).first()
-                            if (override) parsed.lottery = override.lottery_type
+                            const row = await env.DB.prepare(
+                                "SELECT lottery_type, ignore_mode FROM group_config WHERE group_jid = ?"
+                            ).bind(jid).first()
+                            if (row) overrides[jid] = row
                         } catch (_) {}
-
-                        if (parsed.entries.length > 0) {
-                            const stmts = parsed.entries.map(entry =>
-                                env.DB.prepare(`
-                                    INSERT OR IGNORE INTO parsed_entries
-                                    (message_id, whatsapp_timestamp, group_jid, group_name, sender, push_name,
-                                     lottery_type, timeslot, bet_number, bet_type, quantity, rate, price, raw_line)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                `).bind(
-                                    msg.message_id, msg.whatsapp_timestamp, msg.group_jid, msg.group_name || null,
-                                    msg.sender || null, msg.push_name || null,
-                                    parsed.lottery, parsed.timeslot,
-                                    entry.number, entry.betType || entry.category, entry.qty, entry.rate,
-                                    (entry.rate || 0) * (entry.qty || 1), entry.rawLine
-                                )
-                            )
-                            await env.DB.batch(stmts)
-                            entriesInserted += parsed.entries.length
-                        }
-                        messagesParsed++
-                    } catch (parseErr) {
-                        console.log(`Reparse error for ${msg.message_id}: ${parseErr.message}`)
                     }
-                }
 
-                // Are there more pending messages after this batch?
-                const remaining = await env.DB.prepare(`
-                    SELECT COUNT(*) as count
-                    FROM messages m
-                    LEFT JOIN parsed_entries pe ON pe.message_id = m.message_id
-                    WHERE pe.message_id IS NULL AND m.text IS NOT NULL
-                `).first()
+                    const insertStmts = []
+
+                    for (const msg of batch.results) {
+                        // Skip ignored groups
+                        if (overrides[msg.group_jid]?.ignore_mode === 'ignore_parse') {
+                            totalSkipped++
+                            continue
+                        }
+
+                        if (!msg.text || isNoise(msg.text)) {
+                            totalSkipped++
+                            continue
+                        }
+
+                        try {
+                            const parsed = parseMessage(
+                                msg.text, msg.group_name, msg.group_jid,
+                                msg.message_id, msg.whatsapp_timestamp,
+                                msg.sender, msg.push_name
+                            )
+
+                            // Apply admin group-lottery override
+                            if (overrides[msg.group_jid]?.lottery_type) {
+                                parsed.lottery = overrides[msg.group_jid].lottery_type
+                            }
+
+                            if (parsed.entries.length > 0) {
+                                for (const entry of parsed.entries) {
+                                    insertStmts.push(
+                                        env.DB.prepare(`
+                                            INSERT OR IGNORE INTO parsed_entries
+                                            (message_id, whatsapp_timestamp, group_jid, group_name, sender, push_name,
+                                             lottery_type, timeslot, bet_number, bet_type, quantity, rate, price, raw_line)
+                                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        `).bind(
+                                            msg.message_id, msg.whatsapp_timestamp, msg.group_jid, msg.group_name || null,
+                                            msg.sender || null, msg.push_name || null,
+                                            parsed.lottery, parsed.timeslot,
+                                            entry.number, entry.betType || entry.category, entry.qty, entry.rate,
+                                            (entry.rate || 0) * (entry.qty || 1), entry.rawLine
+                                        )
+                                    )
+                                }
+                                totalEntries += parsed.entries.length
+                            }
+                            totalMessages++
+                        } catch (parseErr) {
+                            console.log(`Reparse error for ${msg.message_id}: ${parseErr.message}`)
+                        }
+                    }
+
+                    // Batch insert (D1 limit is ~100 stmts per batch)
+                    for (let i = 0; i < insertStmts.length; i += 100) {
+                        await env.DB.batch(insertStmts.slice(i, i + 100))
+                    }
+
+                    offset += BATCH_SIZE
+                    if (batch.results.length < BATCH_SIZE) hasMore = false
+                }
 
                 return json({
                     ok: true,
-                    batch_size: BATCH_SIZE,
-                    processed: pending.results.length,
-                    messages_parsed: messagesParsed,
-                    messages_skipped_noise: messagesSkippedNoise,
-                    entries_inserted: entriesInserted,
-                    remaining: remaining?.count || 0,
+                    entries_deleted: beforeCount?.count || 0,
+                    messages_reparsed: totalMessages,
+                    messages_skipped: totalSkipped,
+                    entries_inserted: totalEntries,
                 }, 200, corsHeaders)
             }
 

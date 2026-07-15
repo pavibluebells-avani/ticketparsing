@@ -861,6 +861,7 @@ function parseLine(rawLine, ctx) {
                 i++; continue
             }
 
+            // Skip ambiguous rate-like numbers only when no bet_type context is set
             if (!ctx.bet_type && VALID_RATES.has(numVal)) { i++; continue }
             if (!ctx.bet_type && (numVal === 2026 || numVal === 2025)) { i++; continue }
 
