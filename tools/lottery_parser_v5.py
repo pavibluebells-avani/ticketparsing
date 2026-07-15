@@ -204,7 +204,10 @@ def normalize_separators(text: str) -> str:
     text = re.sub(r'(\d{2,5})\.(\d{2,5})', r'\1 \2', text)
     # Apply again for chained: "a.b.c.d" needs two passes
     text = re.sub(r'(\d{2,5})\.(\d{2,5})', r'\1 \2', text)
-    # Normalize equals signs used as separators
+    # Preserve number=qty patterns (87=1, 395=2) by converting to dash form
+    # before blanket = removal. The tokenizer already handles number-qty.
+    text = re.sub(r'(\d{1,5})=(\d{1,2})(?=\s|$|[,|])', r'\1-\2', text)
+    # Normalize remaining equals signs used as separators
     text = re.sub(r'={1,}', ' ', text)
     # Normalize multiple dashes (but keep single dash for number-qty patterns)
     text = re.sub(r'-{2,}', ' ', text)
