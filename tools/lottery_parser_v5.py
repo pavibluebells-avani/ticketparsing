@@ -680,6 +680,24 @@ def get_default_rate(number: str) -> int:
     defaults = {1: 12, 2: 12, 3: 60, 4: 100, 5: 650}
     return defaults.get(dlen, 0)
 
+# Valid rates per digit count — used to check if a carried rate applies
+VALID_RATES_BY_DIGITS = {
+    1: {12},
+    2: {12},                          # AB/BC/AC always Rs12
+    3: {10, 25, 30, 60},              # 3D10, 3D25, 3D_HALF, FULL
+    4: {10, 20, 25, 50, 100},         # 4D20, 4D50, 4D100
+    5: {650},                         # 5D
+}
+
+def validate_rate_for_digits(rate: int, number: str) -> int:
+    """Check if carried rate is valid for this digit count.
+    If not, return the default rate for that digit count."""
+    dlen = len(number)
+    valid = VALID_RATES_BY_DIGITS.get(dlen, set())
+    if rate in valid:
+        return rate
+    return get_default_rate(number)
+
 # ============================================================
 # BOX EXPANSION
 # ============================================================
@@ -815,7 +833,7 @@ def parse_line(
         numbers = [n for n in re.split(r'[.\s]+', nums_str) if n and re.match(r'^\d+$', n)]
         for num in numbers:
             if len(num) >= 2:  # skip single digits that might be qty
-                effective_rate = ctx.rate or get_default_rate(num)
+                effective_rate = validate_rate_for_digits(ctx.rate, num) if ctx.rate else get_default_rate(num)
                 effective_qty = each_qty or 1
                 entry = CanonicalEntry(
                     message_id=message_id,
@@ -962,7 +980,7 @@ def parse_line(
         m = RE_NUM_QTY_STAR.match(tok)
         if m:
             num, qty = m.group(1), int(m.group(2))
-            effective_rate = ctx.rate or get_default_rate(num)
+            effective_rate = validate_rate_for_digits(ctx.rate, num) if ctx.rate else get_default_rate(num)
             entries.append(CanonicalEntry(
                 message_id=message_id, number=num,
                 bet_type=ctx.bet_type, qty=qty,
@@ -985,7 +1003,7 @@ def parse_line(
             # Same-length numbers separated by dash = two betting numbers (e.g. 56-65, 52-25)
             if len(num) >= 2 and len(qty_str) == len(num) and qty > 20:
                 for n in [num, qty_str]:
-                    effective_rate = ctx.rate or get_default_rate(n)
+                    effective_rate = validate_rate_for_digits(ctx.rate, n) if ctx.rate else get_default_rate(n)
                     entries.append(CanonicalEntry(
                         message_id=message_id, number=n,
                         bet_type=ctx.bet_type, qty=each_qty or 1,
@@ -1001,7 +1019,7 @@ def parse_line(
                 continue
             # Heuristic: if qty > 20, it's likely two separate numbers, not a qty
             if qty <= 20:
-                effective_rate = ctx.rate or get_default_rate(num)
+                effective_rate = validate_rate_for_digits(ctx.rate, num) if ctx.rate else get_default_rate(num)
                 entries.append(CanonicalEntry(
                     message_id=message_id, number=num,
                     bet_type=ctx.bet_type, qty=qty,
@@ -1021,7 +1039,7 @@ def parse_line(
         if m:
             num, qty = m.group(1), int(m.group(2))
             if qty <= 20:
-                effective_rate = ctx.rate or get_default_rate(num)
+                effective_rate = validate_rate_for_digits(ctx.rate, num) if ctx.rate else get_default_rate(num)
                 entries.append(CanonicalEntry(
                     message_id=message_id, number=num,
                     bet_type=ctx.bet_type, qty=qty,
@@ -1040,7 +1058,7 @@ def parse_line(
         m = RE_NUM_QTY_DOT.match(tok)
         if m:
             num, qty = m.group(1), int(m.group(2))
-            effective_rate = ctx.rate or get_default_rate(num)
+            effective_rate = validate_rate_for_digits(ctx.rate, num) if ctx.rate else get_default_rate(num)
             entries.append(CanonicalEntry(
                 message_id=message_id, number=num,
                 bet_type=ctx.bet_type, qty=qty,
@@ -1060,7 +1078,7 @@ def parse_line(
         if m:
             num, qty = m.group(1), int(m.group(2))
             if qty <= 20:
-                effective_rate = ctx.rate or get_default_rate(num)
+                effective_rate = validate_rate_for_digits(ctx.rate, num) if ctx.rate else get_default_rate(num)
                 entries.append(CanonicalEntry(
                     message_id=message_id, number=num,
                     bet_type=ctx.bet_type, qty=qty,
@@ -1079,7 +1097,7 @@ def parse_line(
         m = RE_NUM_BOX.match(tok)
         if m:
             num = m.group(1)
-            effective_rate = ctx.rate or get_default_rate(num)
+            effective_rate = validate_rate_for_digits(ctx.rate, num) if ctx.rate else get_default_rate(num)
             box_nums = expand_box(num)
             for bn in box_nums:
                 entries.append(CanonicalEntry(
@@ -1100,7 +1118,7 @@ def parse_line(
         # Check for "box" as next token
         if RE_STANDALONE_NUM.match(tok) and i + 1 < len(tokens) and tokens[i+1].lower().rstrip('.,') in BOX_ALIASES:
             num = tok
-            effective_rate = ctx.rate or get_default_rate(num)
+            effective_rate = validate_rate_for_digits(ctx.rate, num) if ctx.rate else get_default_rate(num)
             box_nums = expand_box(num)
             for bn in box_nums:
                 entries.append(CanonicalEntry(
@@ -1128,7 +1146,7 @@ def parse_line(
             if nums:
                 if bt_str in BET_TYPE_MAP.values() or bt_str in SINGLE_DIGIT_POSITIONS.values() or len(bt_str) <= 3:
                     for num in nums:
-                        effective_rate = ctx.rate or get_default_rate(num)
+                        effective_rate = validate_rate_for_digits(ctx.rate, num) if ctx.rate else get_default_rate(num)
                         entries.append(CanonicalEntry(
                             message_id=message_id, number=num,
                             bet_type=bt_str, qty=each_qty or 1,
@@ -1168,7 +1186,7 @@ def parse_line(
                 if qty_m:
                     qty = int(qty_m.group(1))
                     i += 1
-            effective_rate = ctx.rate or get_default_rate(num)
+            effective_rate = validate_rate_for_digits(ctx.rate, num) if ctx.rate else get_default_rate(num)
             entries.append(CanonicalEntry(
                 message_id=message_id, number=num,
                 bet_type=bt_str, qty=qty,
@@ -1195,7 +1213,7 @@ def parse_line(
                 if qty_m:
                     qty = int(qty_m.group(1))
                     i += 1
-            effective_rate = ctx.rate or get_default_rate(num)
+            effective_rate = validate_rate_for_digits(ctx.rate, num) if ctx.rate else get_default_rate(num)
             entries.append(CanonicalEntry(
                 message_id=message_id, number=num,
                 bet_type=bt_str, qty=qty,
@@ -1247,7 +1265,7 @@ def parse_line(
                     qty = int(qty_m.group(1))
                     i += 1
 
-            effective_rate = ctx.rate or get_default_rate(num)
+            effective_rate = validate_rate_for_digits(ctx.rate, num) if ctx.rate else get_default_rate(num)
             entries.append(CanonicalEntry(
                 message_id=message_id, number=num,
                 bet_type=ctx.bet_type, qty=qty,
