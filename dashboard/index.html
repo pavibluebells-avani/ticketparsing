@@ -2439,8 +2439,10 @@ function renderYamlHtml(msg, parsed) {
     for (const e of parsed.entries) {
       const dlen = e.number ? e.number.length : 0;
       const cat = resolveCategory(dlen, e.rate, e.betType || e.category);
-      const key = `${e.position || 'NONE'}|${e.rate || 0}|${cat}`;
-      if (!groupMap[key]) groupMap[key] = { position: e.position, rate: e.rate, category: cat, numbers: [], totalQty: 0 };
+      // For 2-digit: betType (AB/AC/BC) is the position, use it for grouping
+      const pos = e.position || (dlen === 2 && /^(AB|AC|BC)$/i.test(e.betType) ? e.betType.toUpperCase() : null);
+      const key = `${pos || 'NONE'}|${e.rate || 0}|${cat}`;
+      if (!groupMap[key]) groupMap[key] = { position: pos, rate: e.rate, category: cat, numbers: [], totalQty: 0 };
       groupMap[key].numbers.push(e.number);
       groupMap[key].totalQty += (e.qty || 1);
     }
@@ -2486,7 +2488,7 @@ function renderYamlHtml(msg, parsed) {
       lines.push(`  <span class="yaml-dash">-</span> <span class="yaml-key">number:</span> <span class="yaml-num">"${escapeHtml(entry.number)}"</span>`);
       lines.push(`    <span class="yaml-key">digit_count:</span> <span class="yaml-num">${dlen}</span>`);
       lines.push(`    <span class="yaml-key">family:</span> <span class="yaml-str">${family}</span>`);
-      const pos = entry.position || defaultPosition(dlen, entry.betType || entry.category);
+      const pos = entry.position || (dlen === 2 && /^(AB|AC|BC)$/i.test(entry.betType) ? entry.betType.toUpperCase() : defaultPosition(dlen));
       lines.push(`    <span class="yaml-key">position:</span> <span class="yaml-str">${pos || "null"}</span>`);
       lines.push(`    <span class="yaml-key">play_mode:</span> <span class="yaml-annotation">${playMode}</span>`);
       lines.push(`    <span class="yaml-key">qty:</span> <span class="yaml-num">${entry.qty || 1}</span>`);
