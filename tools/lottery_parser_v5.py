@@ -24,7 +24,7 @@ import glob
 import itertools
 import argparse
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Any, Optional, Tuple
 from collections import Counter, defaultdict
@@ -74,6 +74,22 @@ TIMESLOT_PATTERNS = [
     (re.compile(r'\b10\s*[.:]*\s*pm\b', re.I), "10PM"),
     (re.compile(r'\bpm\s*10\b', re.I), "10PM"),
 ]
+
+# Draw schedule per lottery — ordered list of draw hours in IST (24h)
+# Used for timestamp-based timeslot fallback when message text doesn't specify
+LOTTERY_DRAW_SCHEDULE = {
+    "DEAR":   [13, 18, 20],       # 1PM, 6PM, 8PM
+    "KERALA": [15],                # 3PM only
+    "GOA":    [12, 17, 19],        # 12PM, 5PM, 7PM
+}
+
+# Map draw hour → timeslot label
+DRAW_HOUR_TO_TIMESLOT = {
+    12: "12PM", 13: "1PM", 15: "3PM", 17: "5PM",
+    18: "6PM", 19: "7PM", 20: "8PM",
+}
+
+IST = timezone(timedelta(hours=5, minutes=30))
 
 BET_TYPE_MAP = {
     "ab": "AB", "a.b": "AB", "a b": "AB",
@@ -482,6 +498,48 @@ def detect_timeslot(text: str) -> Optional[str]:
         if pattern.search(text):
             return slot
     return None
+
+
+def resolve_timeslot_from_timestamp(timestamp: int, lottery: Optional[str]) -> Optional[str]:
+    """Derive timeslot from WhatsApp timestamp when not explicit in message.
+
+    Uses the lottery's draw schedule to pick the next upcoming draw.
+    All comparisons in IST. Consolidator forwards bets before cutoff,
+    so the next draw after message time is the intended one.
+
+    Args:
+        timestamp: Unix epoch seconds (UTC)
+        lottery: Lottery type (DEAR, KERALA, GOA) or None
+
+    Returns:
+        Timeslot string like "1PM", "3PM" etc., or None if lottery unknown
+    """
+    if not timestamp or not lottery:
+        return None
+
+    schedule = LOTTERY_DRAW_SCHEDULE.get(lottery)
+    if not schedule:
+        return None
+
+    # Single-draw lottery (Kerala) — always that timeslot
+    if len(schedule) == 1:
+        return DRAW_HOUR_TO_TIMESLOT[schedule[0]]
+
+    # Convert to IST
+    dt_ist = datetime.fromtimestamp(timestamp, tz=IST)
+    hour_ist = dt_ist.hour
+    minute_ist = dt_ist.minute
+    current_minutes = hour_ist * 60 + minute_ist
+
+    # Find the next draw: first draw hour where draw_hour * 60 > current_minutes
+    # (bets arrive before the draw, so next draw is the target)
+    for draw_hour in schedule:
+        if current_minutes < draw_hour * 60:
+            return DRAW_HOUR_TO_TIMESLOT[draw_hour]
+
+    # Past all draws for the day — next day's first draw
+    return DRAW_HOUR_TO_TIMESLOT[schedule[0]]
+
 
 # ============================================================
 # RATE EXTRACTION
@@ -1310,6 +1368,16 @@ def parse_message(message: dict, stats: dict, prev_timeslot: Optional[str] = Non
         all_entries.extend(entries)
         all_traces.extend(line_traces)
         normalized_lines.append(normalize_separators(line))
+
+    # Timeslot fallback: if still None after parsing + inheritance, derive from timestamp
+    if ctx.timeslot is None and ctx.lottery and timestamp:
+        inferred_ts = resolve_timeslot_from_timestamp(timestamp, ctx.lottery)
+        if inferred_ts:
+            ctx.timeslot = inferred_ts
+            # Backfill entries that were created with timeslot=None
+            for entry in all_entries:
+                if entry.timeslot is None:
+                    entry.timeslot = inferred_ts
 
     stats["messages_with_entries"] += (1 if all_entries else 0)
     stats["messages_without_entries"] += (1 if not all_entries else 0)
