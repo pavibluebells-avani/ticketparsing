@@ -641,32 +641,32 @@ def derive_category(number: str, rate: Optional[int], bet_type: Optional[str]) -
     if dlen == 2:
         return "DOUBLE"
 
-    # Three digit
+    # Three digit — aligned with dashboard resolveCategory names
     if dlen == 3:
         if rate:
-            if rate <= 10:
-                return "3D_RS10"
-            elif rate <= 25:
-                return "3D_RS25"
-            elif rate <= 30:
+            if rate == 10:
+                return "3D10"
+            elif rate == 25:
+                return "3D25"
+            elif rate == 30:
                 return "3D_HALF"
+            elif rate == 60:
+                return "FULL"
             else:
-                return "3D_FULL"
+                return f"3D_RS{rate}"
         return "3D_FULL"  # default for 3-digit
 
-    # Four digit
+    # Four digit — aligned with dashboard resolveCategory names
     if dlen == 4:
         if rate:
-            if rate <= 10:
-                return "4D_RS10"
-            elif rate <= 20:
-                return "4D_RS20"
-            elif rate <= 25:
-                return "4D_RS25"
-            elif rate <= 50:
-                return "4D_RS50"
+            if rate == 20:
+                return "4D20"
+            elif rate == 50:
+                return "4D50"
+            elif rate == 100:
+                return "4D100"
             else:
-                return "4D_RS100"
+                return f"4D_RS{rate}"
         return "4D_RS100"  # default for 4-digit
 
     if dlen == 5:

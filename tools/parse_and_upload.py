@@ -268,7 +268,7 @@ def main():
     if args.reparse:
         logger.info("REPARSE MODE: Wiping parsed entries in DB...")
         try:
-            result = api_post("/api/reparse", {})
+            result = api_post("/api/reparse", {"wipe_only": True})
             logger.info(f"  DB wiped: {result.get('entries_deleted', '?')} entries deleted")
         except Exception as e:
             logger.error(f"  Failed to wipe DB: {e}")

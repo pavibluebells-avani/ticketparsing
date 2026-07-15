@@ -911,6 +911,11 @@ export default {
                     return json({ error: "Unauthorized" }, 401, corsHeaders)
                 }
 
+                // Check if wipe-only mode (used by Python parser to avoid JS re-parse)
+                let body = {}
+                try { body = await request.json() } catch (_) {}
+                const wipeOnly = body.wipe_only === true
+
                 // Step 1: Count existing entries before wipe
                 const beforeCount = await env.DB.prepare(
                     "SELECT COUNT(*) as count FROM parsed_entries"
@@ -919,7 +924,17 @@ export default {
                 // Step 2: Delete ALL parsed entries
                 await env.DB.prepare("DELETE FROM parsed_entries").run()
 
-                // Step 3: Reparse all messages in batches
+                // If wipe_only, return immediately — Python parser will re-upload
+                if (wipeOnly) {
+                    return json({
+                        entries_deleted: beforeCount?.count || 0,
+                        messages_reparsed: 0,
+                        entries_inserted: 0,
+                        wipe_only: true
+                    }, 200, corsHeaders)
+                }
+
+                // Step 3: Reparse all messages in batches (JS parser)
                 const BATCH_SIZE = 200
                 let totalMessages = 0
                 let totalEntries = 0

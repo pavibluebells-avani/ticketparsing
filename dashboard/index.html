@@ -2281,26 +2281,26 @@ async function clearMapping(groupJid) {
    ========================================================= */
 
 async function triggerReparse() {
-  if (!confirm("This will DELETE all parsed entries and re-parse every message from scratch.\n\nThis cannot be undone. Continue?")) return;
+  if (!confirm("This will DELETE all parsed entries from DB.\n\nRun 'python3 tools/parse_and_upload.py --reparse' on the server to rebuild.\n\nContinue?")) return;
 
   const btn = document.getElementById("reparse-btn");
   const status = document.getElementById("reparse-status");
   btn.disabled = true;
-  btn.textContent = "⟳ Reparsing…";
-  status.textContent = "Working…";
+  btn.textContent = "⟳ Wiping…";
+  status.textContent = "Deleting parsed entries…";
   status.style.color = "var(--amber)";
 
   try {
     const resp = await fetch(`${API_BASE}/api/reparse`, {
       method: "POST",
-      headers: { "x-api-key": API_KEY }
+      headers: { "x-api-key": API_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ wipe_only: true })
     });
 
     if (resp.ok) {
       const data = await resp.json();
-      status.textContent = `Done — ${data.entries_deleted} old entries removed, ${data.messages_reparsed} messages reparsed, ${data.entries_inserted} new entries created`;
+      status.textContent = `Wiped ${data.entries_deleted} entries. Run Python reparse on server to rebuild.`;
       status.style.color = "var(--green)";
-      // Refresh the main table
       loadMessages();
     } else {
       const err = await resp.json().catch(() => ({}));
