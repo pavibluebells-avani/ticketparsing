@@ -2379,9 +2379,8 @@ function defaultPosition(digitCount, betType) {
 }
 
 function resolveCategory(digitCount, rate, betType) {
-  // If betType already set from parser, use it
-  if (betType && betType !== 'UNKNOWN') return betType;
-  // Derive from digit count + rate
+  // For 2-digit: betType (AB/AC/BC/ABC/ALL) is the POSITION, not the category
+  // Category is derived from rate only
   if (digitCount === 1) return 'SINGLE';
   if (digitCount === 2) {
     if (rate === 12) return 'AB_BC_AC';
@@ -2389,6 +2388,8 @@ function resolveCategory(digitCount, rate, betType) {
     if (rate === 60) return 'FULL';
     return rate ? `2D_RS${rate}` : '2D';
   }
+  // For 3+ digits: betType from parser can be used as category
+  if (betType && betType !== 'UNKNOWN' && !/^(AB|AC|BC|ABC|ALL)$/i.test(betType)) return betType;
   if (digitCount === 3) {
     if (rate === 10) return '3D10';
     if (rate === 25) return '3D25';
