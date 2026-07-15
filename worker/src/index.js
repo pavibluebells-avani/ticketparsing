@@ -431,6 +431,58 @@ export default {
                     }, 200, corsHeaders)
                 }
 
+                // Special case: _UNPARSED — messages with NO parsed entries
+                if (lotteryType === "_UNPARSED") {
+                    let unparsedFilter = "WHERE m.text IS NOT NULL"
+                    const unparsedParams = []
+
+                    if (date) {
+                        const startTs = Math.floor(new Date(date + "T00:00:00Z").getTime() / 1000)
+                        const endTs = startTs + 86400
+                        unparsedFilter += " AND m.whatsapp_timestamp >= ? AND m.whatsapp_timestamp < ?"
+                        unparsedParams.push(startTs, endTs)
+                    }
+                    if (group) {
+                        unparsedFilter += " AND m.group_jid = ?"
+                        unparsedParams.push(group)
+                    }
+                    if (search) {
+                        unparsedFilter += " AND m.text LIKE ?"
+                        unparsedParams.push(`%${search}%`)
+                    }
+
+                    const countQ = `SELECT COUNT(*) as count FROM messages m
+                        LEFT JOIN parsed_entries pe ON pe.message_id = m.message_id
+                        ${unparsedFilter} AND pe.message_id IS NULL`
+                    const totalResult = await env.DB.prepare(countQ).bind(...unparsedParams).first()
+
+                    const msgsQ = `SELECT m.* FROM messages m
+                        LEFT JOIN parsed_entries pe ON pe.message_id = m.message_id
+                        ${unparsedFilter} AND pe.message_id IS NULL
+                        ORDER BY m.whatsapp_timestamp DESC LIMIT ? OFFSET ?`
+                    const msgsResult = await env.DB.prepare(msgsQ).bind(...unparsedParams, limit, offset).all()
+
+                    const messages = (msgsResult.results || []).map(msg => ({
+                        message_id: msg.message_id,
+                        whatsapp_timestamp: msg.whatsapp_timestamp,
+                        group_jid: msg.group_jid,
+                        group_name: msg.group_name,
+                        sender: msg.sender,
+                        push_name: msg.push_name,
+                        text: msg.text,
+                        lottery: null,
+                        timeslot: null,
+                        categories: [],
+                        rates: [],
+                        entries: [],
+                    }))
+
+                    return json({
+                        messages,
+                        meta: { total: totalResult?.count || 0, limit, offset }
+                    }, 200, corsHeaders)
+                }
+
                 // Step 1: Find matching message_ids from parsed_entries
                 let entryFilter = "WHERE 1=1"
                 const entryParams = []

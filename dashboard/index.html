@@ -798,6 +798,8 @@ table th.col-hidden, table td.col-hidden { display: none; }
         <option value="DEAR">DEAR</option>
         <option value="KERALA">KERALA</option>
         <option value="GOA">GOA</option>
+        <option value="AMBIGUOUS">⚠ AMBIGUOUS</option>
+        <option value="_UNPARSED">⚠ UNPARSED (no entries)</option>
       </select>
       <select id="f-timeslot">
         <option value="">All Timeslots</option>
@@ -2364,6 +2366,42 @@ const TOKEN_COLOR_CLASSES = {
   LOTTERY: true, TIMESLOT: true, POSITION: true, SEPARATOR: true
 };
 
+function defaultPosition(digitCount) {
+  if (digitCount === 2) return 'AB';
+  if (digitCount === 3) return 'ABC';
+  if (digitCount === 4) return 'DABC';
+  if (digitCount === 5) return 'EDABC';
+  return null;
+}
+
+function resolveCategory(digitCount, rate, betType) {
+  // If betType already set from parser, use it
+  if (betType && betType !== 'UNKNOWN') return betType;
+  // Derive from digit count + rate
+  if (digitCount === 1) return 'SINGLE';
+  if (digitCount === 2) {
+    if (rate === 12) return 'AB_BC_AC';
+    if (rate === 30) return 'HALF';
+    if (rate === 60) return 'FULL';
+    return rate ? `2D_RS${rate}` : '2D';
+  }
+  if (digitCount === 3) {
+    if (rate === 10) return '3D10';
+    if (rate === 25) return '3D25';
+    if (rate === 30) return '3D_HALF';
+    if (rate === 60) return 'FULL';
+    return rate ? `3D_RS${rate}` : '3D';
+  }
+  if (digitCount === 4) {
+    if (rate === 20) return '4D20';
+    if (rate === 50) return '4D50';
+    if (rate === 100) return '4D100';
+    return rate ? `4D_RS${rate}` : '4D';
+  }
+  if (digitCount === 5) return '5D';
+  return betType || 'UNKNOWN';
+}
+
 function renderYamlHtml(msg, parsed) {
   const Y = (k, v, indent) => `${indent}<span class="yaml-key">${k}:</span> <span class="yaml-str">${v}</span>`;
   const YN = (k, v, indent) => `${indent}<span class="yaml-key">${k}:</span> <span class="yaml-num">${v}</span>`;
@@ -2394,15 +2432,19 @@ function renderYamlHtml(msg, parsed) {
   if (parsed.entries && parsed.entries.length > 0) {
     const groupMap = {};
     for (const e of parsed.entries) {
-      const key = `${e.position || 'NONE'}|${e.rate || 0}|${e.category || 'UNKNOWN'}`;
-      if (!groupMap[key]) groupMap[key] = { position: e.position, rate: e.rate, category: e.category, numbers: [], totalQty: 0 };
+      const dlen = e.number ? e.number.length : 0;
+      const cat = resolveCategory(dlen, e.rate, e.betType || e.category);
+      const key = `${e.position || 'NONE'}|${e.rate || 0}|${cat}`;
+      if (!groupMap[key]) groupMap[key] = { position: e.position, rate: e.rate, category: cat, numbers: [], totalQty: 0 };
       groupMap[key].numbers.push(e.number);
       groupMap[key].totalQty += (e.qty || 1);
     }
     for (const g of Object.values(groupMap)) {
       const totalCost = (g.rate || 0) * g.totalQty;
       lines.push(`  <span class="yaml-dash">-</span> <span class="yaml-key">category:</span> <span class="yaml-str">${escapeHtml(g.category || 'UNKNOWN')}</span>`);
-      lines.push(`    <span class="yaml-key">position:</span> <span class="yaml-str">${g.position || "null"}</span>`);
+      const gDigitLen = g.numbers[0] ? g.numbers[0].length : 0;
+      const gPos = g.position || defaultPosition(gDigitLen);
+      lines.push(`    <span class="yaml-key">position:</span> <span class="yaml-str">${gPos || "null"}</span>`);
       lines.push(`    <span class="yaml-key">numbers:</span> <span class="yaml-num">[${g.numbers.map(n => escapeHtml(n)).join(', ')}]</span>`);
       lines.push(`    <span class="yaml-key">qty_per_number:</span> <span class="yaml-num">${Math.round(g.totalQty / g.numbers.length)}</span>`);
       lines.push(`    <span class="yaml-key">rate:</span> <span class="yaml-num">${g.rate != null ? g.rate : "null"}</span>`);
@@ -2439,11 +2481,13 @@ function renderYamlHtml(msg, parsed) {
       lines.push(`  <span class="yaml-dash">-</span> <span class="yaml-key">number:</span> <span class="yaml-num">"${escapeHtml(entry.number)}"</span>`);
       lines.push(`    <span class="yaml-key">digit_count:</span> <span class="yaml-num">${dlen}</span>`);
       lines.push(`    <span class="yaml-key">family:</span> <span class="yaml-str">${family}</span>`);
-      lines.push(`    <span class="yaml-key">position:</span> <span class="yaml-str">${entry.position || "null"}</span>`);
+      const pos = entry.position || defaultPosition(dlen);
+      lines.push(`    <span class="yaml-key">position:</span> <span class="yaml-str">${pos || "null"}</span>`);
       lines.push(`    <span class="yaml-key">play_mode:</span> <span class="yaml-annotation">${playMode}</span>`);
       lines.push(`    <span class="yaml-key">qty:</span> <span class="yaml-num">${entry.qty || 1}</span>`);
       lines.push(`    <span class="yaml-key">rate:</span> <span class="yaml-num">${entry.rate != null ? entry.rate : "null"}</span>`);
-      lines.push(`    <span class="yaml-key">category:</span> <span class="yaml-str">${entry.category || "null"}</span>`);
+      const entryCat = resolveCategory(dlen, entry.rate, entry.betType || entry.category);
+      lines.push(`    <span class="yaml-key">category:</span> <span class="yaml-str">${entryCat || "null"}</span>`);
     }
   }
 

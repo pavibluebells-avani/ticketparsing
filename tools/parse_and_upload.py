@@ -41,7 +41,7 @@ except ImportError:
 # CONFIG
 # ============================================================
 
-COLLECTOR_RAW_DIR = os.path.expanduser("~/ticketparsing/collector/data/raw")
+COLLECTOR_RAW_DIR = os.path.expanduser("/opt/ticketparsing/collector/data/raw")
 STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".parse_state.json")
 WORKER_URL = "https://ticket-api.officembx.workers.dev"
 API_KEY = "D@ssw0rd123"
