@@ -2366,8 +2366,12 @@ const TOKEN_COLOR_CLASSES = {
   LOTTERY: true, TIMESLOT: true, POSITION: true, SEPARATOR: true
 };
 
-function defaultPosition(digitCount) {
-  if (digitCount === 2) return 'AB';
+function defaultPosition(digitCount, betType) {
+  // For 2-digit: bet_type (AB/AC/BC) IS the position when explicitly set
+  if (digitCount === 2) {
+    if (betType && /^(AB|AC|BC)$/i.test(betType)) return betType.toUpperCase();
+    return 'AB';
+  }
   if (digitCount === 3) return 'ABC';
   if (digitCount === 4) return 'DABC';
   if (digitCount === 5) return 'EDABC';
@@ -2443,7 +2447,7 @@ function renderYamlHtml(msg, parsed) {
       const totalCost = (g.rate || 0) * g.totalQty;
       lines.push(`  <span class="yaml-dash">-</span> <span class="yaml-key">category:</span> <span class="yaml-str">${escapeHtml(g.category || 'UNKNOWN')}</span>`);
       const gDigitLen = g.numbers[0] ? g.numbers[0].length : 0;
-      const gPos = g.position || defaultPosition(gDigitLen);
+      const gPos = g.position || defaultPosition(gDigitLen, g.category);
       lines.push(`    <span class="yaml-key">position:</span> <span class="yaml-str">${gPos || "null"}</span>`);
       lines.push(`    <span class="yaml-key">numbers:</span> <span class="yaml-num">[${g.numbers.map(n => escapeHtml(n)).join(', ')}]</span>`);
       lines.push(`    <span class="yaml-key">qty_per_number:</span> <span class="yaml-num">${Math.round(g.totalQty / g.numbers.length)}</span>`);
@@ -2481,7 +2485,7 @@ function renderYamlHtml(msg, parsed) {
       lines.push(`  <span class="yaml-dash">-</span> <span class="yaml-key">number:</span> <span class="yaml-num">"${escapeHtml(entry.number)}"</span>`);
       lines.push(`    <span class="yaml-key">digit_count:</span> <span class="yaml-num">${dlen}</span>`);
       lines.push(`    <span class="yaml-key">family:</span> <span class="yaml-str">${family}</span>`);
-      const pos = entry.position || defaultPosition(dlen);
+      const pos = entry.position || defaultPosition(dlen, entry.betType || entry.category);
       lines.push(`    <span class="yaml-key">position:</span> <span class="yaml-str">${pos || "null"}</span>`);
       lines.push(`    <span class="yaml-key">play_mode:</span> <span class="yaml-annotation">${playMode}</span>`);
       lines.push(`    <span class="yaml-key">qty:</span> <span class="yaml-num">${entry.qty || 1}</span>`);
