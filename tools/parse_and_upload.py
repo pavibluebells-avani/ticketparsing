@@ -167,6 +167,40 @@ def parse_messages(messages: List[dict]) -> tuple:
         entries, prev_timeslot = parse_message(msg, stats, prev_timeslot, prev_group)
         prev_group = msg.get("group_name", "")
 
+        # Extract token trace from the MessageTrace just created
+        msg_traces = stats.get("message_traces", [])
+        if msg_traces:
+            last_trace = msg_traces[-1]
+            # Serialize to compact JSON: [{v: original, t: TYPE}]
+            token_trace = []
+            for tt in last_trace.token_traces:
+                # Extract type from interpretation like "BET_NUMBER:360" → "BETTING_NUMBER"
+                interp = tt.interpretation
+                colon_idx = interp.find(":")
+                raw_type = interp[:colon_idx] if colon_idx > 0 else interp
+                # Map to dashboard token types
+                type_map = {
+                    "BET_NUMBER": "BETTING_NUMBER",
+                    "BETTYPE": "BET_TYPE",
+                    "RATE": "RATE",
+                    "RATE_PREFIX": "RATE",
+                    "QTY": "QTY",
+                    "LOTTERY": "LOTTERY",
+                    "TIMESLOT": "TIMESLOT",
+                    "TIMESLOT_KEYWORD": "TIMESLOT",
+                    "BET_TYPE": "BET_TYPE",
+                    "POSITION": "BET_TYPE",
+                    "CONTEXT": "OTHER",
+                    "NOISE": "OTHER",
+                    "UNKNOWN": "OTHER",
+                    "BOX_EXPAND": "BETTING_NUMBER",
+                }
+                t = type_map.get(raw_type, "OTHER")
+                token_trace.append({"v": tt.original, "t": t})
+            raw_record["token_trace"] = json.dumps(token_trace, ensure_ascii=False)
+        else:
+            raw_record["token_trace"] = "[]"
+
         # Convert entries to DB format
         for entry in entries:
             entries_for_upload.append({

@@ -1190,10 +1190,24 @@ async function loadMessages() {
       push_name: sm.push_name,
       text: sm.text,
     };
-    // For token highlighting, run tokenizer only (no parsing logic)
-    const normalized = normalizeUnicode(sm.text || "");
-    const tokens = tokenize(normalized);
-    const classified = classifyWithContext(tokens);
+    // Token highlighting: use Python parser's token_trace if available,
+    // fall back to JS tokenizer for messages without trace (pre-migration data)
+    let classified;
+    if (sm.token_trace) {
+      try {
+        const traceArr = typeof sm.token_trace === 'string' ? JSON.parse(sm.token_trace) : sm.token_trace;
+        // Interleave with whitespace tokens so renderTokenHtml adds spacing
+        classified = [];
+        for (let ti = 0; ti < traceArr.length; ti++) {
+          if (ti > 0) classified.push({ raw: " ", type: "ws" });
+          classified.push({ raw: traceArr[ti].v, type: traceArr[ti].t });
+        }
+      } catch (e) {
+        classified = classifyWithContext(tokenize(normalizeUnicode(sm.text || "")));
+      }
+    } else {
+      classified = classifyWithContext(tokenize(normalizeUnicode(sm.text || "")));
+    }
 
     const parsed = {
       lottery: sm.lottery,
@@ -1201,7 +1215,7 @@ async function loadMessages() {
       categories: sm.categories || [],
       rates: sm.rates || [],
       entries: sm.entries || [],
-      classified,  // for token highlighting in detail view only
+      classified,  // from Python token_trace (or JS fallback)
     };
     return { msg, parsed };
   });
@@ -2692,13 +2706,20 @@ function classifyWithContext(tokens) {
     if (i >= 2) {
       const prevTok = classified[i - 1];
       const prevPrevTok = classified[i - 2];
-      if (prevTok && prevTok.type === "SEPARATOR" && prevTok.raw.includes("-") &&
+      if (prevTok && prevTok.type === "SEPARATOR" && (prevTok.raw.includes("-") || prevTok.raw.includes("_")) &&
           prevPrevTok && prevPrevTok.type === "BETTING_NUMBER") {
         if (numVal <= 20) {
           tok.type = "QTY";
           continue;
         }
       }
+    }
+
+    // Rule 4b: valid rate number immediately after LOTTERY -> RATE
+    // e.g. "Kl 100 8074 0808" — 100 is Rs100, not a betting number
+    if (VALID_RATES.includes(numVal) && prevMeaningful && prevMeaningful.type === "LOTTERY") {
+      tok.type = "RATE";
+      continue;
     }
 
     // Rule 5: digit 3/4/5 immediately before "digital" -> BET_TYPE (already word-classified);

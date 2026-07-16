@@ -421,6 +421,7 @@ export default {
                             sender: msg.sender,
                             push_name: msg.push_name,
                             text: msg.text,
+                            token_trace: msg.token_trace || null,
                             lottery: entryList[0]?.lottery || null,
                             timeslot: entryList[0]?.timeslot || null,
                             categories: [...new Set(entryList.map(e => e.betType).filter(Boolean))],
@@ -470,6 +471,7 @@ export default {
                         sender: msg.sender,
                         push_name: msg.push_name,
                         text: msg.text,
+                        token_trace: msg.token_trace || null,
                         lottery: null,
                         timeslot: null,
                         categories: [],
@@ -574,6 +576,7 @@ export default {
                         sender: msg.sender,
                         push_name: msg.push_name,
                         text: msg.text,
+                        token_trace: msg.token_trace || null,
                         lottery: lotteries[0] || null,
                         timeslot: timeslots[0] || null,
                         categories,
@@ -840,13 +843,14 @@ export default {
                 let messagesInserted = 0
                 let entriesInserted = 0
 
-                // Insert raw messages
+                // Insert raw messages (REPLACE to update token_trace on reparse)
                 if (rawMessages.length > 0) {
                     const msgStmts = rawMessages.map(msg =>
                         env.DB.prepare(`
-                            INSERT OR IGNORE INTO messages
-                            (message_id, whatsapp_timestamp, group_jid, group_name, sender, push_name, text, historical)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            INSERT INTO messages
+                            (message_id, whatsapp_timestamp, group_jid, group_name, sender, push_name, text, historical, token_trace)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ON CONFLICT(message_id) DO UPDATE SET token_trace = excluded.token_trace
                         `).bind(
                             msg.message_id,
                             msg.whatsapp_timestamp,
@@ -855,7 +859,8 @@ export default {
                             msg.sender || null,
                             msg.push_name || null,
                             msg.text || null,
-                            msg.historical ? 1 : 0
+                            msg.historical ? 1 : 0,
+                            msg.token_trace || null
                         )
                     )
                     // D1 batch limit ~100
