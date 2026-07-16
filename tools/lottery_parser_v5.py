@@ -210,6 +210,8 @@ def normalize_separators(text: str) -> str:
     text = re.sub(r'(\d{1,5})=(\d{1,2})(?=\s|$|[,|])', r'\1-\2', text)
     # Normalize remaining equals signs used as separators
     text = re.sub(r'={1,}', ' ', text)
+    # Underscore as number-qty separator: 866_1 → 866-1
+    text = re.sub(r'(\d{1,5})_(\d{1,2})(?=\s|$|[.,|])', r'\1-\2', text)
     # Normalize multiple dashes (but keep single dash for number-qty patterns)
     text = re.sub(r'-{2,}', ' ', text)
     # Remove stray colons and trailing dots on tokens
