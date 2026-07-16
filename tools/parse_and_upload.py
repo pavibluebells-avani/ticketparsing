@@ -191,6 +191,7 @@ def parse_messages(messages: List[dict]) -> tuple:
                     "BET_TYPE": "BET_TYPE",
                     "POSITION": "BET_TYPE",
                     "CONTEXT": "OTHER",
+                    "DATE": "OTHER",
                     "NOISE": "OTHER",
                     "UNKNOWN": "OTHER",
                     "BOX_EXPAND": "BETTING_NUMBER",
@@ -200,6 +201,11 @@ def parse_messages(messages: List[dict]) -> tuple:
             raw_record["token_trace"] = json.dumps(token_trace, ensure_ascii=False)
         else:
             raw_record["token_trace"] = "[]"
+
+        # Contest date: only set when explicitly mentioned in message
+        contest_date = entries[0].contest_date if entries and entries[0].contest_date else None
+        raw_record["contest_date"] = contest_date
+        raw_record["contest_date_explicit"] = 1 if contest_date else 0
 
         # Convert entries to DB format
         for entry in entries:
@@ -218,6 +224,8 @@ def parse_messages(messages: List[dict]) -> tuple:
                 "rate": entry.rate or 0,
                 "price": entry.amount or ((entry.rate or 0) * (entry.qty or 1)),
                 "raw_line": entry.raw_line,
+                "contest_date": entry.contest_date,
+                "contest_date_explicit": 1 if entry.contest_date else 0,
             })
 
     return raw_for_upload, entries_for_upload, stats

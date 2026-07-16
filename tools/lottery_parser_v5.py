@@ -162,6 +162,7 @@ class CanonicalEntry:
     timestamp: int = 0
     human_time: str = ""
     source_file: str = ""
+    contest_date: Optional[str] = None  # YYYY-MM-DD — draw date (may differ from message date)
 
 @dataclass
 class TokenTrace:
@@ -787,10 +788,13 @@ def parse_line(
     # e.g. "KL 3pm", "Rs 30", "Dear. 1", "30...5...2026"
     stripped = re.sub(r'[^a-zA-Z0-9]', '', line_lower)
 
-    # Date line: "30...5...2026"
-    date_match = re.match(r'^\s*(\d{1,2})\s*[./\s]+(\d{1,2})\s*[./\s]+(\d{4})\s*$', line)
+    # Date line: "30...5...2026", "17..7..2026", "17/7/2026"
+    date_match = re.match(r'^\s*(\d{1,2})\s*[./\s-]+(\d{1,2})\s*[./\s-]+(\d{4})\s*$', line)
     if date_match:
-        ctx.date_str = f"{date_match.group(1)}/{date_match.group(2)}/{date_match.group(3)}"
+        dd, mm, yyyy = int(date_match.group(1)), int(date_match.group(2)), int(date_match.group(3))
+        if 1 <= dd <= 31 and 1 <= mm <= 12 and 2020 <= yyyy <= 2030:
+            ctx.date_str = f"{yyyy:04d}-{mm:02d}-{dd:02d}"
+            trace(line.strip(), f"DATE:{ctx.date_str}")
         return entries
 
     # Bet type detection — check if line is a bet type header
@@ -1483,6 +1487,11 @@ def parse_message(message: dict, stats: dict, prev_timeslot: Optional[str] = Non
             for entry in all_entries:
                 if entry.timeslot is None:
                     entry.timeslot = inferred_ts
+
+    # Contest date: only set when explicitly mentioned in message text
+    if ctx.date_str:
+        for entry in all_entries:
+            entry.contest_date = ctx.date_str
 
     stats["messages_with_entries"] += (1 if all_entries else 0)
     stats["messages_without_entries"] += (1 if not all_entries else 0)

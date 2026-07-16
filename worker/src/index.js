@@ -422,6 +422,8 @@ export default {
                             push_name: msg.push_name,
                             text: msg.text,
                             token_trace: msg.token_trace || null,
+                            contest_date: msg.contest_date || null,
+                            contest_date_explicit: msg.contest_date_explicit || 0,
                             lottery: entryList[0]?.lottery || null,
                             timeslot: entryList[0]?.timeslot || null,
                             categories: [...new Set(entryList.map(e => e.betType).filter(Boolean))],
@@ -472,6 +474,7 @@ export default {
                         push_name: msg.push_name,
                         text: msg.text,
                         token_trace: msg.token_trace || null,
+                        contest_date: msg.contest_date || null,
                         lottery: null,
                         timeslot: null,
                         categories: [],
@@ -577,6 +580,7 @@ export default {
                         push_name: msg.push_name,
                         text: msg.text,
                         token_trace: msg.token_trace || null,
+                        contest_date: msg.contest_date || null,
                         lottery: lotteries[0] || null,
                         timeslot: timeslots[0] || null,
                         categories,
@@ -848,9 +852,9 @@ export default {
                     const msgStmts = rawMessages.map(msg =>
                         env.DB.prepare(`
                             INSERT INTO messages
-                            (message_id, whatsapp_timestamp, group_jid, group_name, sender, push_name, text, historical, token_trace)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            ON CONFLICT(message_id) DO UPDATE SET token_trace = excluded.token_trace
+                            (message_id, whatsapp_timestamp, group_jid, group_name, sender, push_name, text, historical, token_trace, contest_date, contest_date_explicit)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ON CONFLICT(message_id) DO UPDATE SET token_trace = excluded.token_trace, contest_date = excluded.contest_date, contest_date_explicit = excluded.contest_date_explicit
                         `).bind(
                             msg.message_id,
                             msg.whatsapp_timestamp,
@@ -860,7 +864,9 @@ export default {
                             msg.push_name || null,
                             msg.text || null,
                             msg.historical ? 1 : 0,
-                            msg.token_trace || null
+                            msg.token_trace || null,
+                            msg.contest_date || null,
+                            msg.contest_date_explicit || 0
                         )
                     )
                     // D1 batch limit ~100
@@ -878,14 +884,14 @@ export default {
                         env.DB.prepare(`
                             INSERT OR IGNORE INTO parsed_entries
                             (message_id, whatsapp_timestamp, group_jid, group_name, sender, push_name,
-                             lottery_type, timeslot, bet_number, bet_type, quantity, rate, price, raw_line)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             lottery_type, timeslot, bet_number, bet_type, quantity, rate, price, raw_line, contest_date, contest_date_explicit)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         `).bind(
                             e.message_id, e.whatsapp_timestamp, e.group_jid, e.group_name || null,
                             e.sender || null, e.push_name || null,
                             e.lottery_type || null, e.timeslot || null,
                             e.bet_number, e.bet_type, e.quantity || 1, e.rate || 0,
-                            e.price || 0, e.raw_line || null
+                            e.price || 0, e.raw_line || null, e.contest_date || null, e.contest_date_explicit || 0
                         )
                     )
                     for (let i = 0; i < entryStmts.length; i += 100) {
