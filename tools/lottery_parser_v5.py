@@ -393,8 +393,13 @@ def normalize_separators(text: str) -> str:
     text = re.sub(r'\bset\.', 'set', text, flags=re.I)
     # "b-9" → "b 9" (bet type B, number 9)
     text = re.sub(r'\b([abc])-(\d)', r'\1 \2', text, flags=re.I)
-    # "38/83" → "38 83" (slash-separated same-length numbers)
+    # "38/83" "827/287" → "38 83" "827 287" (slash-separated same-length numbers)
     text = re.sub(r'\b(\d{2,5})/(\d{2,5})\b', r'\1 \2', text)
+    # Apply again for chains: "55/66/77" needs two passes
+    text = re.sub(r'\b(\d{2,5})/(\d{2,5})\b', r'\1 \2', text)
+    # Trailing "/." or "/" after number groups
+    text = re.sub(r'/\.', ' ', text)
+    text = re.sub(r'(\d)/(?=[\s,]|$)', r'\1', text)
     # "dl" → "dear" (another abbreviation)
     text = re.sub(r'\bdl\b', 'dear', text, flags=re.I)
     # "ac-35" "bc-53" → "ac 35" "bc 53" (bet_type-number)
