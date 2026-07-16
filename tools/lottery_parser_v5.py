@@ -1312,8 +1312,8 @@ def parse_line(
     if ctx.bet_types and len(ctx.bet_types) > 1:
         multi_expanded = []
         for entry in entries:
-            # Only expand if entry uses the first bet_type (set by ctx.bet_type)
-            if entry.bet_type == ctx.bet_types[0]:
+            # If entry uses any of the multi bet_types, expand to all of them
+            if entry.bet_type in ctx.bet_types:
                 for bt in ctx.bet_types:
                     e = CanonicalEntry(**{**asdict(entry), 'bet_type': bt})
                     multi_expanded.append(e)
