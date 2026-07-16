@@ -424,6 +424,7 @@ export default {
                             token_trace: msg.token_trace || null,
                             contest_date: msg.contest_date || null,
                             contest_date_explicit: msg.contest_date_explicit || 0,
+                            review_comment: msg.review_comment || null,
                             lottery: entryList[0]?.lottery || null,
                             timeslot: entryList[0]?.timeslot || null,
                             categories: [...new Set(entryList.map(e => e.betType).filter(Boolean))],
@@ -909,6 +910,29 @@ export default {
                     entries_received: parsedEntries.length,
                     entries_inserted: entriesInserted,
                 }, 200, corsHeaders)
+            }
+
+            // =================================================
+            // POST /api/messages/:id/comment — save or clear review comment
+            // =================================================
+
+            const commentMatch = url.pathname.match(/^\/api\/messages\/([^/]+)\/comment$/)
+            if (commentMatch && method === "POST") {
+
+                const apiKey = request.headers.get("x-api-key")
+                if (apiKey !== env.API_KEY) {
+                    return json({ error: "Unauthorized" }, 401, corsHeaders)
+                }
+
+                const messageId = decodeURIComponent(commentMatch[1])
+                const body = await request.json()
+                const comment = body.comment || null  // null = clear
+
+                await env.DB.prepare(
+                    "UPDATE messages SET review_comment = ? WHERE message_id = ?"
+                ).bind(comment, messageId).run()
+
+                return json({ ok: true, message_id: messageId, review_comment: comment }, 200, corsHeaders)
             }
 
             // =================================================

@@ -524,6 +524,139 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
 .yaml-section { color: #f9e2af; font-weight: 600; }
 .yaml-annotation { color: #cba6f7; font-style: italic; }
 
+/* ---------------- Comment popover ---------------- */
+
+.comment-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+  color: var(--muted);
+  transition: background 0.15s;
+}
+.comment-icon:hover { background: #efeee8; }
+.comment-icon.has-comment { color: var(--accent); }
+.comment-dot {
+  position: absolute;
+  top: 2px; right: 2px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #e74c3c;
+}
+.comment-popover {
+  position: fixed;
+  z-index: 200;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+  padding: 14px;
+  width: 300px;
+}
+.comment-popover textarea {
+  width: 100%;
+  min-height: 70px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  background: #faf9f6;
+  color: var(--text);
+  box-sizing: border-box;
+}
+.comment-popover textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+.comment-popover .comment-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+.comment-popover .comment-actions button {
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  background: #efeee8;
+  color: var(--text);
+}
+.comment-popover .comment-actions button:hover { background: #e0dfd8; }
+.comment-popover .comment-actions .btn-save {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.comment-popover .comment-actions .btn-save:hover { opacity: 0.85; }
+.comment-popover .comment-actions .btn-clear {
+  color: #e74c3c;
+  border-color: #e74c3c;
+  background: transparent;
+}
+
+/* Detail view comment section */
+.detail-comment {
+  padding: 14px 22px;
+  border-top: 1px solid var(--border);
+}
+.detail-comment h4 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.detail-comment textarea {
+  width: 100%;
+  min-height: 60px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  background: #faf9f6;
+  color: var(--text);
+  box-sizing: border-box;
+}
+.detail-comment textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+.detail-comment .comment-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+.detail-comment .comment-actions button {
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  background: #efeee8;
+  color: var(--text);
+}
+.detail-comment .comment-actions button:hover { background: #e0dfd8; }
+.detail-comment .comment-actions .btn-save {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.detail-comment .comment-actions .btn-save:hover { opacity: 0.85; }
+.detail-comment .comment-actions .btn-clear {
+  color: #e74c3c;
+  border-color: #e74c3c;
+  background: transparent;
+}
+
 /* ---------------- Admin section ---------------- */
 
 #admin-group-table select {
@@ -948,11 +1081,12 @@ table th.col-hidden, table td.col-hidden { display: none; }
             <th data-col="5">Category</th>
             <th data-col="6">Rate</th>
             <th data-col="7">Message</th>
-            <th data-col="8"></th>
+            <th data-col="8" style="width:36px" title="Review Notes">&#x1f4ac;</th>
+            <th data-col="9"></th>
           </tr>
         </thead>
         <tbody id="messages-body">
-          <tr><td colspan="8" class="empty">Loading…</td></tr>
+          <tr><td colspan="10" class="empty">Loading…</td></tr>
         </tbody>
       </table>
     </div>
@@ -1038,6 +1172,23 @@ table th.col-hidden, table td.col-hidden { display: none; }
         <div class="yaml-box" id="detail-yaml"></div>
       </div>
     </div>
+    <div class="detail-comment" id="detail-comment-section">
+      <h4>Review Notes</h4>
+      <textarea id="detail-comment-text" placeholder="Add a review note…"></textarea>
+      <div class="comment-actions">
+        <button class="btn-clear" onclick="saveDetailComment(null)">Clear</button>
+        <button class="btn-save" onclick="saveDetailComment()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Comment popover (positioned dynamically) -->
+<div class="comment-popover" id="comment-popover" style="display:none">
+  <textarea id="popover-comment-text" placeholder="Add a review note…"></textarea>
+  <div class="comment-actions">
+    <button class="btn-clear" onclick="savePopoverComment(null)">Clear</button>
+    <button class="btn-save" onclick="savePopoverComment()">Save</button>
   </div>
 </div>
 
@@ -1621,6 +1772,11 @@ function renderTable(filtered) {
       ? parsed.rates.slice(0, 2).map(r => `<span class="pill p-rate">₹${r}</span>`).join(" ")
       : '<span class="p-none">—</span>';
 
+    const hasComment = !!(msg.review_comment);
+    const commentIcon = hasComment
+      ? `<span class="comment-icon has-comment" onclick="event.stopPropagation();openCommentPopover(event,${idx})" title="${escapeHtml(msg.review_comment)}">&#x1f4ac;<span class="comment-dot"></span></span>`
+      : `<span class="comment-icon" onclick="event.stopPropagation();openCommentPopover(event,${idx})" title="Add note">&#x1f4ac;</span>`;
+
     return `<tr onclick="openDetail(${idx})" style="cursor:pointer">
       <td data-col="0" class="time-col${colHiddenCls(0)}">${time}</td>
       <td data-col="1" class="group-col${colHiddenCls(1)}" title="${group}">${group}</td>
@@ -1630,7 +1786,8 @@ function renderTable(filtered) {
       <td data-col="5" class="${colHiddenCls(5)}">${catPill}</td>
       <td data-col="6" class="${colHiddenCls(6)}">${ratePill}</td>
       <td data-col="7" class="msg-col${colHiddenCls(7)}" title="${text}">${text}</td>
-      <td data-col="8" class="${colHiddenCls(8)}" style="color:var(--accent);font-size:11px;white-space:nowrap;cursor:pointer">View ›</td>
+      <td data-col="8" class="${colHiddenCls(8)}">${commentIcon}</td>
+      <td data-col="9" class="${colHiddenCls(9)}" style="color:var(--accent);font-size:11px;white-space:nowrap;cursor:pointer">View ›</td>
     </tr>`;
   }).join("");
 }
@@ -2355,11 +2512,91 @@ function openDetail(idx) {
   document.getElementById("detail-raw").innerHTML = renderTokenHtml(parsed.classified);
   document.getElementById("detail-yaml").innerHTML = renderYamlHtml(msg, parsed);
 
+  // Populate comment
+  document.getElementById("detail-comment-text").value = msg.review_comment || "";
+  window._detailMsgIdx = idx;
+
   document.getElementById("detail-overlay").classList.add("open");
 }
 
 function closeDetail() {
   document.getElementById("detail-overlay").classList.remove("open");
+  closeCommentPopover();
+}
+
+/* ---- Comment popover (inline in table) ---- */
+let _popoverIdx = null;
+
+function openCommentPopover(event, idx) {
+  closeCommentPopover();
+  const item = allMessagesCache[idx];
+  if (!item) return;
+  _popoverIdx = idx;
+
+  const popover = document.getElementById("comment-popover");
+  const textarea = document.getElementById("popover-comment-text");
+  textarea.value = item.msg.review_comment || "";
+
+  // Position near the clicked icon
+  const rect = event.currentTarget.getBoundingClientRect();
+  let top = rect.bottom + 4;
+  let left = rect.left - 260;
+  if (left < 10) left = 10;
+  if (top + 180 > window.innerHeight) top = rect.top - 180;
+  popover.style.top = top + "px";
+  popover.style.left = left + "px";
+  popover.style.display = "block";
+  textarea.focus();
+}
+
+function closeCommentPopover() {
+  document.getElementById("comment-popover").style.display = "none";
+  _popoverIdx = null;
+}
+
+// Close popover on outside click
+document.addEventListener("click", function(e) {
+  const popover = document.getElementById("comment-popover");
+  if (popover.style.display === "block" && !popover.contains(e.target) && !e.target.closest(".comment-icon")) {
+    closeCommentPopover();
+  }
+});
+
+async function savePopoverComment(clearVal) {
+  if (_popoverIdx === null) return;
+  const item = allMessagesCache[_popoverIdx];
+  if (!item) return;
+  const comment = clearVal === null ? null : document.getElementById("popover-comment-text").value.trim() || null;
+  await saveComment(item.msg.message_id, comment, _popoverIdx);
+  closeCommentPopover();
+}
+
+async function saveDetailComment(clearVal) {
+  const idx = window._detailMsgIdx;
+  if (idx == null) return;
+  const item = allMessagesCache[idx];
+  if (!item) return;
+  const comment = clearVal === null ? null : document.getElementById("detail-comment-text").value.trim() || null;
+  await saveComment(item.msg.message_id, comment, idx);
+  if (clearVal === null) document.getElementById("detail-comment-text").value = "";
+}
+
+async function saveComment(messageId, comment, idx) {
+  try {
+    const res = await fetch(`${API_BASE}/api/messages/${encodeURIComponent(messageId)}/comment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
+      body: JSON.stringify({ comment })
+    });
+    if (!res.ok) throw new Error("Failed");
+    // Update local cache
+    if (allMessagesCache[idx]) {
+      allMessagesCache[idx].msg.review_comment = comment;
+    }
+    renderTable();
+  } catch (e) {
+    alert("Error saving comment: " + e.message);
+  }
 }
 
 function renderTokenHtml(classified) {
