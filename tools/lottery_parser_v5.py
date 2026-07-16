@@ -837,6 +837,8 @@ def parse_line(
 
     # Strip the each/set qty pattern from the line to prevent qty number being parsed as bet number
     if each_strip_pattern:
+        stripped_text = each_strip_pattern.group(0).strip()
+        trace(stripped_text, f"QTY:{each_qty}")
         start, end = each_strip_pattern.start(), each_strip_pattern.end()
         line = line[:start] + ' ' + line[end:]
         line_lower = line.lower()
