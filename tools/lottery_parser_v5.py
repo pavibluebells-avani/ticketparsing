@@ -139,6 +139,7 @@ class ParseContext:
     timeslot: Optional[str] = None
     rate: Optional[int] = None
     bet_type: Optional[str] = None  # AB, BC, AC, ABC, ALL, A, B, C
+    bet_types: List[str] = field(default_factory=list)  # Multiple: ["AB", "AC"]
     qty_default: int = 1
     date_str: Optional[str] = None
 
@@ -567,7 +568,7 @@ def extract_rate(text: str) -> Optional[int]:
 # ============================================================
 
 def detect_bet_type(text: str) -> Optional[str]:
-    """Detect bet type header from a line"""
+    """Detect bet type header from a line (returns first found)"""
     cleaned = text.lower().strip()
     # Direct match
     if cleaned in BET_TYPE_MAP:
@@ -578,6 +579,17 @@ def detect_bet_type(text: str) -> Optional[str]:
         if t in BET_TYPE_MAP:
             return BET_TYPE_MAP[t]
     return None
+
+def detect_bet_types_multi(text: str) -> List[str]:
+    """Detect ALL bet types on a line. 'Ab ac' → ['AB', 'AC']"""
+    tokens = re.split(r'[\s.,]+', text.lower().strip())
+    found = []
+    for t in tokens:
+        if t in BET_TYPE_MAP:
+            bt = BET_TYPE_MAP[t]
+            if bt not in found:
+                found.append(bt)
+    return found
 
 # ============================================================
 # NOISE FILTER
@@ -775,8 +787,9 @@ def parse_line(
         return entries
 
     # Bet type detection — check if line is a bet type header
-    # Lines like "AB", "BC", "AC", "ABC", "All", "Ab Bc Ac"
-    bt = detect_bet_type(line)
+    # Lines like "AB", "BC", "AC", "ABC", "All", "Ab Bc Ac", "Ab ac"
+    multi_bts = detect_bet_types_multi(line)
+    bt = multi_bts[0] if multi_bts else None
     if bt:
         # Check if this line is JUST a bet type (no numbers)
         nums_in_line = re.findall(r'\b\d{1,5}\b', line)
@@ -784,9 +797,12 @@ def parse_line(
         non_rate_nums = [n for n in nums_in_line if int(n) not in (10, 12, 15, 20, 25, 30, 50, 60, 100, 650)]
         if not non_rate_nums:
             ctx.bet_type = bt
+            # Store multiple bet types for expansion (e.g. "Ab ac" → ["AB", "AC"])
+            ctx.bet_types = multi_bts if len(multi_bts) > 1 else []
             return entries
         # If bet type + numbers on same line, set context and continue to parse numbers
         ctx.bet_type = bt
+        ctx.bet_types = multi_bts if len(multi_bts) > 1 else []
 
     # Check for single-position headers: "A", "B", "C" with possible digit
     single_pos_match = re.match(r'^([abc])\s*$', line_lower)
@@ -1292,6 +1308,19 @@ def parse_line(
         trace(tok, f"UNKNOWN:{tok_lower}", "low")
         i += 1
 
+    # Expand multiple bet types: "Ab ac" → duplicate each entry for AB and AC
+    if ctx.bet_types and len(ctx.bet_types) > 1:
+        multi_expanded = []
+        for entry in entries:
+            # Only expand if entry uses the first bet_type (set by ctx.bet_type)
+            if entry.bet_type == ctx.bet_types[0]:
+                for bt in ctx.bet_types:
+                    e = CanonicalEntry(**{**asdict(entry), 'bet_type': bt})
+                    multi_expanded.append(e)
+            else:
+                multi_expanded.append(entry)
+        entries = multi_expanded
+
     # Apply "ALL" expansion if bet_type is ALL
     expanded = []
     for entry in entries:
@@ -1380,6 +1409,14 @@ def parse_message(message: dict, stats: dict, prev_timeslot: Optional[str] = Non
     all_traces: List[TokenTrace] = []
     normalized_lines = []
 
+    # Pre-scan for trailing "Each-N" line (standalone qty modifier for entire message)
+    trailing_each_qty = None
+    if non_empty_lines:
+        last_l = non_empty_lines[-1].strip()
+        each_m = re.match(r'^(?:each|ecsh|ech|eash|ea)\s*[-.]?\s*(\d+)\s*(?:set|sat|ser|seat|pcs|pes)?$', last_l, re.I)
+        if each_m:
+            trailing_each_qty = int(each_m.group(1))
+
     for line in lines:
         line = line.strip()
         if not line:
@@ -1389,6 +1426,13 @@ def parse_message(message: dict, stats: dict, prev_timeslot: Optional[str] = Non
         all_entries.extend(entries)
         all_traces.extend(line_traces)
         normalized_lines.append(normalize_separators(line))
+
+    # Apply trailing "Each-N" retroactively to all entries with qty=1
+    if trailing_each_qty and all_entries:
+        for entry in all_entries:
+            if entry.qty == 1:
+                entry.qty = trailing_each_qty
+                entry.amount = (entry.rate or 0) * trailing_each_qty
 
     # Timeslot fallback: if still None after parsing + inheritance, derive from timestamp
     if ctx.timeslot is None and ctx.lottery and timestamp:
