@@ -1745,7 +1745,7 @@ function renderTable(filtered) {
   const tbody = document.getElementById("messages-body");
 
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty">No messages found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">No messages found</td></tr>';
     return;
   }
 
@@ -2593,7 +2593,17 @@ async function saveComment(messageId, comment, idx) {
     if (allMessagesCache[idx]) {
       allMessagesCache[idx].msg.review_comment = comment;
     }
-    renderTable();
+    // Update the icon in-place (avoid full table re-render which loses pagination/filters)
+    const rows = document.getElementById("messages-body").querySelectorAll("tr");
+    if (rows[idx]) {
+      const iconCell = rows[idx].querySelector("[data-col='8']");
+      if (iconCell) {
+        const hasComment = !!comment;
+        iconCell.innerHTML = hasComment
+          ? `<span class="comment-icon has-comment" onclick="event.stopPropagation();openCommentPopover(event,${idx})" title="${escapeHtml(comment)}">&#x1f4ac;<span class="comment-dot"></span></span>`
+          : `<span class="comment-icon" onclick="event.stopPropagation();openCommentPopover(event,${idx})" title="Add note">&#x1f4ac;</span>`;
+      }
+    }
   } catch (e) {
     alert("Error saving comment: " + e.message);
   }
