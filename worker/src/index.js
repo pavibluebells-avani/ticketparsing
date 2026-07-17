@@ -5,6 +5,16 @@
 
 import { parseMessage, isNoise, resetGroupContext } from './parser.js'
 
+// Helper: count which individual positions matched (for partial match display)
+function countPositionMatches(betNum, target, posLabel) {
+    const positions = posLabel.split("")
+    const matched = []
+    for (let i = 0; i < betNum.length && i < target.length; i++) {
+        if (betNum[i] === target[i]) matched.push(positions[i] || i)
+    }
+    return matched.join("")
+}
+
 export default {
 
     async fetch(request, env) {
@@ -937,6 +947,177 @@ export default {
                 ).bind(comment, messageId).run()
 
                 return json({ ok: true, message_id: messageId, review_comment: comment }, 200, corsHeaders)
+            }
+
+            // =================================================
+            // POST /api/winning — save or update winning number
+            // =================================================
+
+            if (url.pathname === "/api/winning" && method === "POST") {
+                const apiKey = request.headers.get("x-api-key")
+                if (apiKey !== env.API_KEY) {
+                    return json({ error: "Unauthorized" }, 401, corsHeaders)
+                }
+
+                const body = await request.json()
+                const { draw_date, timeslot, lottery_type, winning_number } = body
+
+                if (!draw_date || !timeslot || !lottery_type || !winning_number) {
+                    return json({ error: "draw_date, timeslot, lottery_type, winning_number required" }, 400, corsHeaders)
+                }
+                if (!/^\d{5}$/.test(winning_number)) {
+                    return json({ error: "winning_number must be exactly 5 digits" }, 400, corsHeaders)
+                }
+
+                await env.DB.prepare(`
+                    INSERT INTO winning_numbers (draw_date, timeslot, lottery_type, winning_number, updated_at)
+                    VALUES (?, ?, ?, ?, datetime('now'))
+                    ON CONFLICT(draw_date, timeslot, lottery_type)
+                    DO UPDATE SET winning_number = excluded.winning_number, updated_at = datetime('now')
+                `).bind(draw_date, timeslot, lottery_type, winning_number).run()
+
+                return json({ ok: true, draw_date, timeslot, lottery_type, winning_number }, 200, corsHeaders)
+            }
+
+            // =================================================
+            // GET /api/winning — fetch winning number(s)
+            // =================================================
+
+            if (url.pathname === "/api/winning" && method === "GET") {
+                const draw_date = url.searchParams.get("date")
+                const timeslot = url.searchParams.get("timeslot")
+                const lottery_type = url.searchParams.get("lottery_type")
+
+                let query = "SELECT * FROM winning_numbers WHERE 1=1"
+                const params = []
+
+                if (draw_date) { query += " AND draw_date = ?"; params.push(draw_date) }
+                if (timeslot) { query += " AND timeslot = ?"; params.push(timeslot) }
+                if (lottery_type) { query += " AND lottery_type = ?"; params.push(lottery_type) }
+
+                query += " ORDER BY draw_date DESC, timeslot"
+                const result = await env.DB.prepare(query).bind(...params).all()
+                return json({ winning_numbers: result.results || [] }, 200, corsHeaders)
+            }
+
+            // =================================================
+            // GET /api/winning/check — match bets against winning number
+            // =================================================
+
+            if (url.pathname === "/api/winning/check" && method === "GET") {
+                const draw_date = url.searchParams.get("date")
+                const timeslot = url.searchParams.get("timeslot")
+                const lottery_type = url.searchParams.get("lottery_type")
+
+                if (!draw_date || !timeslot || !lottery_type) {
+                    return json({ error: "date, timeslot, lottery_type required" }, 400, corsHeaders)
+                }
+
+                // Get winning number
+                const winning = await env.DB.prepare(
+                    "SELECT winning_number FROM winning_numbers WHERE draw_date = ? AND timeslot = ? AND lottery_type = ?"
+                ).bind(draw_date, timeslot, lottery_type).first()
+
+                if (!winning) {
+                    return json({ error: "No winning number found", winning_number: null, matches: [] }, 200, corsHeaders)
+                }
+
+                const wn = winning.winning_number // 5-digit EDABC
+
+                // Get all bets for this date + timeslot + lottery
+                const startTs = Math.floor(new Date(draw_date + "T00:00:00Z").getTime() / 1000)
+                const endTs = startTs + 86400
+
+                const bets = await env.DB.prepare(`
+                    SELECT pe.*, m.push_name, m.group_name, m.text
+                    FROM parsed_entries pe
+                    JOIN messages m ON pe.message_id = m.message_id
+                    WHERE pe.lottery_type = ?
+                      AND pe.timeslot = ?
+                      AND pe.whatsapp_timestamp >= ? AND pe.whatsapp_timestamp < ?
+                    ORDER BY pe.whatsapp_timestamp DESC
+                `).bind(lottery_type, timeslot, startTs, endTs).all()
+
+                // Position extraction from winning number (right-aligned)
+                // Winning: EDABC (index 0=E, 1=D, 2=A, 3=B, 4=C)
+                const posMap = { E: wn[0], D: wn[1], A: wn[2], B: wn[3], C: wn[4] }
+
+                const results = (bets.results || []).map(bet => {
+                    const num = bet.bet_number || ""
+                    const dlen = num.length
+                    const betType = (bet.bet_type || "").toUpperCase()
+                    let matched = false
+                    let matchType = ""
+                    let matchedPositions = ""
+
+                    if (dlen === 5) {
+                        // Full EDABC match
+                        matched = num === wn
+                        matchType = matched ? "EDABC" : ""
+                        matchedPositions = matched ? "EDABC" : countPositionMatches(num, wn, "EDABC")
+                    } else if (dlen === 4) {
+                        // DABC — last 4 digits
+                        const target = wn.slice(1) // DABC
+                        matched = num === target
+                        matchType = matched ? "DABC" : ""
+                        matchedPositions = matched ? "DABC" : countPositionMatches(num, target, "DABC")
+                    } else if (dlen === 3) {
+                        // ABC — last 3 digits
+                        const target = wn.slice(2) // ABC
+                        matched = num === target
+                        matchType = matched ? "ABC" : ""
+                        matchedPositions = matched ? "ABC" : countPositionMatches(num, target, "ABC")
+                    } else if (dlen === 2) {
+                        // Position-dependent: AB, BC, AC
+                        let target = ""
+                        if (betType === "AB") { target = wn[2] + wn[3]; matchType = "AB" }
+                        else if (betType === "BC") { target = wn[3] + wn[4]; matchType = "BC" }
+                        else if (betType === "AC") { target = wn[2] + wn[4]; matchType = "AC" }
+                        else { target = wn[2] + wn[3]; matchType = "AB" } // default AB
+                        matched = num === target
+                        matchedPositions = matched ? matchType : countPositionMatches(num, target, matchType)
+                        if (!matched) matchType = ""
+                    } else if (dlen === 1) {
+                        // Position-dependent: A, B, C
+                        let target = ""
+                        if (betType === "A") { target = wn[2]; matchType = "A" }
+                        else if (betType === "B") { target = wn[3]; matchType = "B" }
+                        else if (betType === "C") { target = wn[4]; matchType = "C" }
+                        else { target = wn[4]; matchType = "C" } // default C
+                        matched = num === target
+                        matchedPositions = matched ? matchType : ""
+                        if (!matched) matchType = ""
+                    }
+
+                    return {
+                        bet_number: num,
+                        bet_type: bet.bet_type,
+                        qty: bet.quantity,
+                        rate: bet.rate,
+                        price: bet.price,
+                        push_name: bet.push_name,
+                        group_name: bet.group_name,
+                        message_id: bet.message_id,
+                        matched,
+                        match_type: matchType,
+                        matched_positions: matchedPositions,
+                    }
+                })
+
+                // Summary
+                const totalBets = results.length
+                const winners = results.filter(r => r.matched)
+                const totalWinners = winners.length
+                const totalPayout = winners.reduce((s, w) => s + (w.price || 0), 0)
+
+                return json({
+                    winning_number: wn,
+                    draw_date,
+                    timeslot,
+                    lottery_type,
+                    summary: { total_bets: totalBets, total_winners: totalWinners, total_payout: totalPayout },
+                    matches: results,
+                }, 200, corsHeaders)
             }
 
             // =================================================

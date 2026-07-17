@@ -657,6 +657,42 @@ td.msg-col { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-
   background: transparent;
 }
 
+/* ---------------- Winning Check ---------------- */
+
+#winning-section .winning-controls {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;
+}
+#winning-section .winning-controls input,
+#winning-section .winning-controls select {
+  padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); font-size: 13px; font-family: inherit;
+}
+#winning-section .winning-controls input[type="text"] {
+  width: 90px; letter-spacing: 4px; font-weight: 700; font-size: 16px; text-align: center;
+}
+#winning-summary {
+  display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px;
+}
+#winning-summary .win-stat {
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 16px; min-width: 120px; text-align: center;
+}
+#winning-summary .win-stat .ws-label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+#winning-summary .win-stat .ws-value { font-size: 22px; font-weight: 700; margin-top: 2px; }
+#winning-summary .win-stat .ws-value.win { color: var(--green); }
+#winning-summary .win-stat .ws-value.lose { color: var(--red); }
+
+#winning-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#winning-table th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--border); font-size: 12px; text-transform: uppercase; color: var(--muted); }
+#winning-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+#winning-table tr.matched { background: rgba(31,138,76,0.08); }
+#winning-table tr.matched td:first-child { font-weight: 700; }
+.match-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.match-badge.win { background: rgba(31,138,76,0.15); color: var(--green); }
+.match-badge.partial { background: rgba(181,117,10,0.15); color: var(--amber); }
+.match-badge.miss { background: rgba(192,57,43,0.08); color: var(--muted); }
+.winning-number-display { font-size: 28px; font-weight: 800; letter-spacing: 6px; font-family: 'SF Mono', 'Menlo', monospace; }
+.winning-number-display .pos-label { font-size: 10px; font-weight: 400; color: var(--muted); display: block; letter-spacing: 6px; }
+
 /* ---------------- Admin section ---------------- */
 
 #admin-group-table select {
@@ -1047,6 +1083,39 @@ table th.col-hidden, table td.col-hidden { display: none; }
     </div>
     <div id="booking-report-body">
       <div id="booking-report-container"></div>
+    </div>
+  </div>
+
+  <!-- Winning Check -->
+  <div class="table-section" id="winning-section">
+    <div class="table-section-header">
+      <h3 style="display:flex;align-items:center;gap:8px">
+        <span class="section-toggle" onclick="toggleWinningSection()" title="Collapse/Expand" style="cursor:pointer;font-size:16px;width:20px;text-align:center" id="winning-section-arrow">−</span>
+        Winning Check
+      </h3>
+    </div>
+    <div id="winning-body">
+      <div class="winning-controls">
+        <input type="date" id="winning-date">
+        <select id="winning-timeslot">
+          <option value="">Timeslot</option>
+          <option value="1PM">1PM</option>
+          <option value="3PM">3PM</option>
+          <option value="6PM">6PM</option>
+          <option value="8PM">8PM</option>
+        </select>
+        <select id="winning-lottery">
+          <option value="">Lottery</option>
+          <option value="DEAR">DEAR</option>
+          <option value="KERALA">KERALA</option>
+          <option value="GOA">GOA</option>
+        </select>
+        <input type="text" id="winning-number-input" maxlength="5" placeholder="EDABC" title="Enter 5-digit winning number">
+        <button onclick="saveWinningNumber()" style="background:var(--accent);color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:13px;cursor:pointer">Save</button>
+        <button onclick="checkWinning()" style="background:var(--green);color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:13px;cursor:pointer">Check</button>
+        <button onclick="clearWinning()" title="Clear" style="background:var(--red);color:#fff;border:none;padding:6px 10px;border-radius:6px;font-size:15px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div id="winning-result"></div>
     </div>
   </div>
 
@@ -2706,8 +2775,9 @@ function renderYamlHtml(msg, parsed) {
       // For 2-digit: betType (AB/AC/BC) is the position, use it for grouping
       const pos = e.position || (dlen === 2 && /^(AB|AC|BC)$/i.test(e.betType) ? e.betType.toUpperCase() : null);
       const key = `${pos || 'NONE'}|${e.rate || 0}|${cat}`;
-      if (!groupMap[key]) groupMap[key] = { position: pos, rate: e.rate, category: cat, numbers: [], totalQty: 0 };
+      if (!groupMap[key]) groupMap[key] = { position: pos, rate: e.rate, category: cat, numbers: [], qtys: [], totalQty: 0 };
       groupMap[key].numbers.push(e.number);
+      groupMap[key].qtys.push(e.qty || 1);
       groupMap[key].totalQty += (e.qty || 1);
     }
     for (const g of Object.values(groupMap)) {
@@ -2716,8 +2786,16 @@ function renderYamlHtml(msg, parsed) {
       const gDigitLen = g.numbers[0] ? g.numbers[0].length : 0;
       const gPos = g.position || defaultPosition(gDigitLen, g.category);
       lines.push(`    <span class="yaml-key">position:</span> <span class="yaml-str">${gPos || "null"}</span>`);
-      lines.push(`    <span class="yaml-key">numbers:</span> <span class="yaml-num">[${g.numbers.map(n => escapeHtml(n)).join(', ')}]</span>`);
-      lines.push(`    <span class="yaml-key">qty_per_number:</span> <span class="yaml-num">${Math.round(g.totalQty / g.numbers.length)}</span>`);
+      // Show numbers with individual qty when quantities differ
+      const allSameQty = g.qtys.every(q => q === g.qtys[0]);
+      if (allSameQty) {
+        lines.push(`    <span class="yaml-key">numbers:</span> <span class="yaml-num">[${g.numbers.map(n => escapeHtml(n)).join(', ')}]</span>`);
+        lines.push(`    <span class="yaml-key">qty_per_number:</span> <span class="yaml-num">${g.qtys[0]}</span>`);
+      } else {
+        const numWithQty = g.numbers.map((n, i) => `${escapeHtml(n)}(${g.qtys[i]})`).join(', ');
+        lines.push(`    <span class="yaml-key">numbers:</span> <span class="yaml-num">[${numWithQty}]</span>`);
+        lines.push(`    <span class="yaml-key">qty_per_number:</span> <span class="yaml-str">varies</span>`);
+      }
       lines.push(`    <span class="yaml-key">rate:</span> <span class="yaml-num">${g.rate != null ? g.rate : "null"}</span>`);
       lines.push(`    <span class="yaml-key">total_tickets:</span> <span class="yaml-num">${g.totalQty}</span>`);
       lines.push(`    <span class="yaml-key">total_cost:</span> <span class="yaml-num">${totalCost}</span>`);
@@ -2752,7 +2830,7 @@ function renderYamlHtml(msg, parsed) {
       lines.push(`  <span class="yaml-dash">-</span> <span class="yaml-key">number:</span> <span class="yaml-num">"${escapeHtml(entry.number)}"</span>`);
       lines.push(`    <span class="yaml-key">digit_count:</span> <span class="yaml-num">${dlen}</span>`);
       lines.push(`    <span class="yaml-key">family:</span> <span class="yaml-str">${family}</span>`);
-      const pos = entry.position || (dlen === 2 && /^(AB|AC|BC)$/i.test(entry.betType) ? entry.betType.toUpperCase() : defaultPosition(dlen));
+      const pos = entry.position || (dlen === 1 && /^[ABC]$/i.test(entry.betType) ? entry.betType.toUpperCase() : (dlen === 2 && /^(AB|AC|BC)$/i.test(entry.betType) ? entry.betType.toUpperCase() : defaultPosition(dlen)));
       lines.push(`    <span class="yaml-key">position:</span> <span class="yaml-str">${pos || "null"}</span>`);
       lines.push(`    <span class="yaml-key">play_mode:</span> <span class="yaml-annotation">${playMode}</span>`);
       lines.push(`    <span class="yaml-key">qty:</span> <span class="yaml-num">${entry.qty || 1}</span>`);
@@ -3059,6 +3137,191 @@ function findNearby(classified, idx, dir) {
     i += dir;
   }
   return null;
+}
+
+/* =========================================================
+   WINNING CHECK
+   ========================================================= */
+
+function toggleWinningSection() {
+  const body = document.getElementById("winning-body");
+  const arrow = document.getElementById("winning-section-arrow");
+  if (body.style.display === "none") { body.style.display = ""; arrow.textContent = "−"; }
+  else { body.style.display = "none"; arrow.textContent = "+"; }
+}
+
+// Set default date to today
+document.getElementById("winning-date").valueAsDate = new Date();
+
+async function saveWinningNumber() {
+  const draw_date = document.getElementById("winning-date").value;
+  const timeslot = document.getElementById("winning-timeslot").value;
+  const lottery_type = document.getElementById("winning-lottery").value;
+  const winning_number = document.getElementById("winning-number-input").value.trim();
+
+  if (!draw_date || !timeslot || !lottery_type) { alert("Select date, timeslot, and lottery"); return; }
+  if (!/^\d{5}$/.test(winning_number)) { alert("Enter exactly 5 digits"); return; }
+
+  try {
+    const res = await fetch(`${API_BASE}/api/winning`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
+      body: JSON.stringify({ draw_date, timeslot, lottery_type, winning_number })
+    });
+    if (!res.ok) throw new Error((await res.json()).error || "Failed");
+    // Auto-check after save
+    checkWinning();
+  } catch (e) {
+    alert("Error: " + e.message);
+  }
+}
+
+async function loadSavedWinning() {
+  const draw_date = document.getElementById("winning-date").value;
+  const timeslot = document.getElementById("winning-timeslot").value;
+  const lottery_type = document.getElementById("winning-lottery").value;
+  if (!draw_date || !timeslot || !lottery_type) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/winning?date=${draw_date}&timeslot=${timeslot}&lottery_type=${lottery_type}`, {
+      headers: { "x-api-key": API_KEY }
+    });
+    const data = await res.json();
+    if (data.winning_numbers && data.winning_numbers.length > 0) {
+      document.getElementById("winning-number-input").value = data.winning_numbers[0].winning_number;
+    }
+  } catch (_) {}
+}
+
+// Auto-load saved winning number when selectors change
+document.getElementById("winning-date").addEventListener("change", loadSavedWinning);
+document.getElementById("winning-timeslot").addEventListener("change", loadSavedWinning);
+document.getElementById("winning-lottery").addEventListener("change", loadSavedWinning);
+
+async function checkWinning() {
+  const draw_date = document.getElementById("winning-date").value;
+  const timeslot = document.getElementById("winning-timeslot").value;
+  const lottery_type = document.getElementById("winning-lottery").value;
+
+  if (!draw_date || !timeslot || !lottery_type) { alert("Select date, timeslot, and lottery"); return; }
+
+  const container = document.getElementById("winning-result");
+  container.innerHTML = '<div style="color:var(--muted);padding:20px">Loading...</div>';
+
+  try {
+    const res = await fetch(`${API_BASE}/api/winning/check?date=${draw_date}&timeslot=${timeslot}&lottery_type=${lottery_type}`, {
+      headers: { "x-api-key": API_KEY }
+    });
+    const data = await res.json();
+
+    if (!data.winning_number) {
+      container.innerHTML = '<div style="color:var(--muted);padding:20px">No winning number saved for this slot. Enter a 5-digit number and click Save.</div>';
+      return;
+    }
+
+    const wn = data.winning_number;
+    const sum = data.summary || {};
+    const matches = data.matches || [];
+
+    // Winning number display with position labels
+    let html = `<div style="margin-bottom:16px">
+      <div class="winning-number-display">
+        <span class="pos-label">E &nbsp;D &nbsp;A &nbsp;B &nbsp;C</span>
+        ${wn.split("").join(" &nbsp;")}
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">${lottery_type} &middot; ${timeslot} &middot; ${draw_date}</div>
+    </div>`;
+
+    // Summary cards
+    html += `<div id="winning-summary">
+      <div class="win-stat"><div class="ws-label">Total Bets</div><div class="ws-value">${sum.total_bets || 0}</div></div>
+      <div class="win-stat"><div class="ws-label">Winners</div><div class="ws-value win">${sum.total_winners || 0}</div></div>
+      <div class="win-stat"><div class="ws-label">Win Payout</div><div class="ws-value lose">${sum.total_payout || 0}</div></div>
+    </div>`;
+
+    // Sort: winners first, then by digit count desc
+    matches.sort((a, b) => {
+      if (a.matched !== b.matched) return a.matched ? -1 : 1;
+      return (b.bet_number || "").length - (a.bet_number || "").length;
+    });
+
+    // Results table
+    html += `<div class="table-wrapper"><table id="winning-table">
+      <thead><tr>
+        <th>Number</th><th>Digits</th><th>Type</th><th>Qty</th><th>Rate</th><th>Price</th>
+        <th>Sender</th><th>Group</th><th>Match</th><th>Positions</th>
+      </tr></thead><tbody>`;
+
+    for (const m of matches) {
+      const rowCls = m.matched ? "matched" : "";
+      const dlen = (m.bet_number || "").length;
+      const posLabels = { 5: "EDABC", 4: "DABC", 3: "ABC" };
+      const expectedPos = posLabels[dlen] || (m.bet_type || "").toUpperCase() || "?";
+
+      let matchBadge;
+      if (m.matched) {
+        matchBadge = `<span class="match-badge win">WIN</span>`;
+      } else if (m.matched_positions && m.matched_positions.length > 0) {
+        matchBadge = `<span class="match-badge partial">${m.matched_positions.length}/${dlen}</span>`;
+      } else {
+        matchBadge = `<span class="match-badge miss">—</span>`;
+      }
+
+      // Highlight matched digits in the bet number
+      let numDisplay = highlightMatchedDigits(m.bet_number, wn, dlen, (m.bet_type || "").toUpperCase());
+
+      html += `<tr class="${rowCls}">
+        <td style="font-family:'SF Mono','Menlo',monospace;font-weight:600;font-size:14px">${numDisplay}</td>
+        <td>${dlen}D</td>
+        <td>${escapeHtml(m.bet_type || "—")}</td>
+        <td>${m.qty || 1}</td>
+        <td>${m.rate != null ? m.rate : "—"}</td>
+        <td>${m.price != null ? m.price : "—"}</td>
+        <td>${escapeHtml(m.push_name || "—")}</td>
+        <td>${escapeHtml(m.group_name || "—")}</td>
+        <td>${matchBadge}</td>
+        <td style="font-family:'SF Mono','Menlo',monospace;font-size:12px">${m.matched ? m.match_type : (m.matched_positions || "—")}</td>
+      </tr>`;
+    }
+
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+
+  } catch (e) {
+    container.innerHTML = `<div style="color:var(--red);padding:20px">Error: ${e.message}</div>`;
+  }
+}
+
+function highlightMatchedDigits(betNum, winningNum, dlen, betType) {
+  if (!betNum || !winningNum) return escapeHtml(betNum || "");
+  let target;
+  if (dlen === 5) target = winningNum;
+  else if (dlen === 4) target = winningNum.slice(1);
+  else if (dlen === 3) target = winningNum.slice(2);
+  else if (dlen === 2) {
+    if (betType === "BC") target = winningNum[3] + winningNum[4];
+    else if (betType === "AC") target = winningNum[2] + winningNum[4];
+    else target = winningNum[2] + winningNum[3]; // AB default
+  } else if (dlen === 1) {
+    if (betType === "A") target = winningNum[2];
+    else if (betType === "B") target = winningNum[3];
+    else target = winningNum[4]; // C default
+  } else return escapeHtml(betNum);
+
+  let result = "";
+  for (let i = 0; i < betNum.length && i < target.length; i++) {
+    if (betNum[i] === target[i]) {
+      result += `<span style="color:var(--green);font-weight:800">${betNum[i]}</span>`;
+    } else {
+      result += `<span style="color:var(--red)">${betNum[i]}</span>`;
+    }
+  }
+  return result;
+}
+
+function clearWinning() {
+  document.getElementById("winning-result").innerHTML = "";
+  document.getElementById("winning-number-input").value = "";
 }
 
 /* ---------------- Client-side parser removed ---------------- */

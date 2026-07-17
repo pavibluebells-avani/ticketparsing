@@ -111,7 +111,7 @@ RATE_SUFFIX_PATTERN = re.compile(
 )
 
 SET_ALIASES = {"set", "sets", "sat", "ser", "sett", "seat", "pcs", "pes"}
-EACH_ALIASES = {"each", "ecsh", "ech", "eash", "ea"}
+EACH_ALIASES = {"each", "ecsh", "ech", "eash", "ea", "ec"}
 BOX_ALIASES = {"box", "bx"}
 
 # Noise patterns — messages to skip entirely
@@ -998,9 +998,12 @@ def parse_line(
             i += 1
             continue
 
-        # Skip set/qty compound tokens: "1set", "2sat", "5ser", "10set", "5seat", "2pcs"
-        if re.match(r'^\d+\s*(?:set|sat|ser|sett|seat|pcs|pes)$', tok_lower):
-            trace(tok, f"QTY:{tok_lower}")
+        # Inline set/qty tokens: "1set", "2sat", "5ser", "10set" — update running qty
+        # Acts as a forward-looking multiplier for subsequent numbers
+        inline_qty_match = re.match(r'^(\d+)\s*(?:set|sat|ser|sett|seat|pcs|pes)$', tok_lower)
+        if inline_qty_match:
+            each_qty = int(inline_qty_match.group(1))
+            trace(tok, f"QTY:{each_qty}")
             i += 1
             continue
 
@@ -1453,13 +1456,22 @@ def parse_message(message: dict, stats: dict, prev_timeslot: Optional[str] = Non
     all_traces: List[TokenTrace] = []
     normalized_lines = []
 
-    # Pre-scan for trailing "Each-N" line (standalone qty modifier for entire message)
+    # Pre-scan for trailing qty line (standalone qty modifier for entire message)
+    # Checks last few lines for "each 10", "10set EC", "10set", etc.
     trailing_each_qty = None
     if non_empty_lines:
-        last_l = non_empty_lines[-1].strip()
-        each_m = re.match(r'^(?:each|ecsh|ech|eash|ea)\s*[-.]?\s*(\d+)\s*(?:set|sat|ser|seat|pcs|pes)?$', last_l, re.I)
-        if each_m:
-            trailing_each_qty = int(each_m.group(1))
+        for scan_line in reversed(non_empty_lines[-3:]):
+            sl = scan_line.strip()
+            # "each 10set", "ea 5", "each-3", "ec 10"
+            each_m = re.match(r'^(?:each|ecsh|ech|eash|ea|ec)\s*[-.]?\s*(\d+)\s*(?:set|sat|ser|seat|pcs|pes)?$', sl, re.I)
+            if each_m:
+                trailing_each_qty = int(each_m.group(1))
+                break
+            # "10set EC", "10set each", "10set"
+            set_m = re.match(r'^(\d+)\s*(?:set|sat|ser|seat|pcs|pes)\s*(?:each|ecsh|ech|eash|ea|ec)?\s*$', sl, re.I)
+            if set_m:
+                trailing_each_qty = int(set_m.group(1))
+                break
 
     for line in lines:
         line = line.strip()
