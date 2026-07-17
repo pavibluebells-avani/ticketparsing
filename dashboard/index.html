@@ -1340,6 +1340,9 @@ async function loadMessages() {
       sender: sm.sender,
       push_name: sm.push_name,
       text: sm.text,
+      review_comment: sm.review_comment || null,
+      contest_date: sm.contest_date || null,
+      contest_date_explicit: sm.contest_date_explicit || 0,
     };
     // Token highlighting: use Python parser's token_trace if available,
     // fall back to JS tokenizer for messages without trace (pre-migration data)
